@@ -3,7 +3,8 @@
 import 'dotenv/config';
 
 import OpenAI from 'openai';
-import { ChatStream } from './chat-stream';
+
+import { ReActAgent } from './react-agent';
 
 import { generate_system_prompt } from './instructions';
 import { get_tools_by_names } from './tools/repository';
@@ -28,37 +29,15 @@ const openai = new OpenAI({
 });
 
 async function main() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  const agent = new ReActAgent(openai);
 
-  // Initialize tools and generate system prompt
-  const tools = get_tools_by_names(['calculator', 'search_web']);
-  const toolDefinitions = convert_tools_for_prompt(tools);
-  const system_prompt = generate_system_prompt(toolDefinitions, {
-    include_date: true,
-  });
+  const question =
+    'If I have 125 apples and want to distribute them equally among 5 people, how many apples does each person get?';
 
-  console.log(system_prompt);
+  console.log('Question:', question);
+  console.log('\nSolving...\n');
 
-  const stream = new ChatStream(openai, system_prompt);
-
-  console.log('Chat started. Type your messages (press Ctrl+C to exit):');
-
-  while (true) {
-    const userInput = await new Promise<string>((resolve) => {
-      rl.question('\nYou: ', resolve);
-    });
-
-    if (userInput.toLowerCase() === 'exit') {
-      break;
-    }
-
-    await stream.process_user_input(userInput);
-  }
-
-  rl.close();
+  await agent.solve(question);
 }
 
 main().catch(console.error);

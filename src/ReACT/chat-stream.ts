@@ -1,9 +1,9 @@
 // ~/src/REACT-COT/chat-stream.ts
 
 import OpenAI from 'openai';
-
 import { calculator_tool } from './tools/calculator';
 import { search_web_tool } from './tools/search';
+import { logger, logReactStep } from './logger';
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat';
 import type { ToolResponse } from './tools/helpers';
@@ -18,16 +18,12 @@ interface ReActStep {
 
 const log = {
   step: (step: ReActStep) => {
-    console.log('\n=== STEP ===');
-    if (step.thought) console.log('🤔 Thought:', step.thought);
-    if (step.action) console.log('🎯 Action:', step.action);
-    if (step.action_input)
-      console.log('📥 Input:', JSON.stringify(step.action_input, null, 2));
-    if (step.observation) console.log('👁️ Observation:', step.observation);
-    if (step.final_answer) console.log('✅ Final Answer:', step.final_answer);
-    console.log('===========\n');
+    logReactStep(step);
   },
-  error: (message: string) => console.error('❌ Error:', message),
+  error: (message: string) => {
+    console.error('❌ Error:', message);
+    logger.error(message);
+  },
   stream: (content: string) => process.stdout.write(content),
 };
 
@@ -49,7 +45,9 @@ export class ChatStream {
   }
 
   async process_user_input(user_input: string): Promise<void> {
-    //console.log('\n📝 User Input:', userInput, '\n');
+    // Show user input in console and log it
+    console.log('\nUser:', user_input);
+    logger.info({ type: 'USER_INPUT', content: user_input });
 
     // Start fresh conversation log with user input
     this.conversation_log = `User: ${user_input}\n`;
@@ -72,8 +70,14 @@ export class ChatStream {
       // log.step(step); // debug logging
 
       if (step.final_answer) {
-        // Add final answer to conversation log
         this.conversation_log += `Thought: ${step.thought}\nFinal Answer: ${step.final_answer}`;
+
+        // Remove console.log here since it's handled by streaming
+        logger.info({
+          type: 'ASSISTANT_RESPONSE',
+          thought: step.thought,
+          response: step.final_answer,
+        });
 
         // Update the user message with complete conversation
         this.messages[1] = {
@@ -102,12 +106,8 @@ export class ChatStream {
           step.action,
           step.action_input
         );
-        console.log(
-          '📊 Observation added:',
-          observation.length > 256
-            ? observation.slice(0, 256) + '...'
-            : observation
-        );
+        // Remove or change to logger.debug if you want to keep this information
+        // console.log('📊 Observation added:', observation.length > 256 ? observation.slice(0, 256) + '...' : observation);
 
         // Add observation to conversation log
         this.conversation_log += `Observation: ${observation}\n\n`;
@@ -138,21 +138,35 @@ export class ChatStream {
   }
 
   private async execute_step(): Promise<ReActStep> {
-    // console.log('🤖 Executing step...'); // debug logging
     const stream = await this.openai.chat.completions.create({
       model: 'Qwen/Qwen2-VL-72B-Instruct',
       messages: this.messages,
       stream: true,
+      stop: ['<HALT>'],
     });
 
     let content = '';
+    let buffer = '';
+    let isFinalAnswer = false;
+
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
       content += delta;
-      log.stream(delta);
+      buffer += delta;
+
+      // Check if we've hit the Final Answer section
+      if (buffer.includes('Final Answer:') && !isFinalAnswer) {
+        isFinalAnswer = true;
+        // Clear buffer up to Final Answer:
+        buffer = buffer.substring(buffer.indexOf('Final Answer:'));
+      }
+
+      // If we're in final answer mode, stream to console
+      if (isFinalAnswer) {
+        process.stdout.write(delta);
+      }
     }
 
-    // Parse the response into a ReActStep
     return this.parse_step_response(content);
   }
 
@@ -200,7 +214,6 @@ export class ChatStream {
 
         return result.results || result.error || 'No result';
       } catch (error: any) {
-        // Check if error is related to rate limiting or DDG anomaly
         if (
           error.message?.includes('DDG detected an anomaly') ||
           error.message?.includes('rate limit') ||
@@ -208,16 +221,15 @@ export class ChatStream {
         ) {
           retry_count++;
           if (retry_count <= max_retries) {
-            // Exponential backoff: 1s, 2s, 4s
             const backoff_time = base_backoff_ms * Math.pow(2, retry_count - 1);
-            console.log(
+            // Change console.log to logger
+            logger.info(
               `Rate limit hit. Retrying in ${backoff_time / 1000}s...`
             );
             await new Promise((resolve) => setTimeout(resolve, backoff_time));
             continue;
           }
         }
-        // If it's not a rate limit error or we've exhausted retries, return error message
         return `Error executing action: ${error.message}`;
       }
     }
