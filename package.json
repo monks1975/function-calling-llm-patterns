@@ -1,0 +1,30 @@
+{
+  "name": "openai-node-tool-calls",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "react": "ts-node src/REACT/main.ts",
+    "functions": "ts-node src/FUNCTIONS/index.ts",
+    "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "duck-duck-scrape": "^2.2.7",
+    "mathjs": "^14.2.1",
+    "openai": "^4.85.1",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.1"
+  }
+}

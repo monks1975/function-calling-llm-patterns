@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Node
+node_modules/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log* 
+
+# Mac specific
+.DS_Store
