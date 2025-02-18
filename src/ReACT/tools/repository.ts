@@ -3,13 +3,11 @@
 import {
   calculator_tool,
   json_schema as calculator_json_schema,
-  examples as calculator_examples,
 } from './calculator';
 
 import {
   search_web_tool,
   json_schema as search_web_json_schema,
-  examples as search_web_examples,
 } from './search';
 
 export interface Tool {
@@ -18,32 +16,28 @@ export interface Tool {
   description: string;
   schema: string;
   function: Function;
-  examples: string[];
 }
 
 export interface ToolDefinition {
   name: string;
   description: string;
   schema: string;
-  examples: string[];
 }
 
 export const tool_repository: Record<string, Tool> = {
   calculator: {
     name: 'Calculator',
-    alternative_names: ['Calc', 'Calculator_Tool'],
+    alternative_names: ['Calc', 'Calculator Math', 'Math'],
     description: 'A tool for calculating mathematical expressions',
     schema: calculator_json_schema,
     function: calculator_tool,
-    examples: calculator_examples,
   },
   search_web: {
     name: 'Search Web',
-    alternative_names: ['Search', 'Search_Tool'],
+    alternative_names: ['Search', 'Search Internet'],
     description: 'A tool for searching the web',
     schema: search_web_json_schema,
     function: search_web_tool,
-    examples: search_web_examples,
   },
 };
 
@@ -57,11 +51,18 @@ export function get_tools_by_names(tool_names: string[]): Tool[] {
   });
 }
 
-export function convert_tools_for_prompt(tools: Tool[]): ToolDefinition[] {
-  return tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    schema: tool.schema,
-    examples: tool.examples,
-  }));
+export function convert_tools_for_prompt(tools: Tool[]): string {
+  return tools
+    .map((tool) => {
+      let toolDescription = `Tool: ${tool.name}\n`;
+      toolDescription += `Description: ${tool.description}\n`;
+      toolDescription += 'Input Schema:\n';
+      toolDescription += tool.schema
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => `  ${line}`)
+        .join('\n');
+      return toolDescription;
+    })
+    .join('\n\n');
 }

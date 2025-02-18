@@ -30,14 +30,34 @@ const openai = new OpenAI({
 
 async function main() {
   const agent = new ReActAgent(openai);
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  const question =
-    'If I have 125 apples and want to distribute them equally among 5 people, how many apples does each person get?';
+  console.log('ReACT Agent CLI - Enter your questions (type "exit" to quit)\n');
 
-  console.log('Question:', question);
-  console.log('\nSolving...\n');
+  // Create recursive function for asking questions
+  const askQuestion = () => {
+    rl.question('Question: ', async (question) => {
+      if (question.toLowerCase() === 'exit') {
+        rl.close();
+        return;
+      }
 
-  await agent.solve(question);
+      try {
+        await agent.answer(question);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+
+      console.log('\n--------------------------------');
+
+      askQuestion(); // Ask for the next question
+    });
+  };
+
+  askQuestion();
 }
 
 main().catch(console.error);
