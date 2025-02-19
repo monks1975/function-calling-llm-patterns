@@ -3,8 +3,7 @@
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 
-// Define the possible response structures
-interface ReActResponse {
+interface ExampleAssistantResponse {
   thought: string;
   action?: string;
   input?: any;
@@ -18,7 +17,7 @@ interface ExampleUserMessage {
 
 interface ExampleAssistantMessage {
   role: 'assistant';
-  content: ReActResponse;
+  content: ExampleAssistantResponse;
 }
 
 // Make Example type more explicit - user followed by assistant
