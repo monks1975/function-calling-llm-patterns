@@ -1,5 +1,7 @@
 // ~/src/ReACT/tools/repository.ts
 
+import * as path from 'path';
+
 import {
   calculator_tool,
   text_schema as calculator_text_schema,
@@ -12,7 +14,6 @@ import {
 
 import { create_library_tool } from './library.tool';
 import { load_and_convert_yaml } from '../helpers';
-import * as path from 'path';
 
 export interface ToolDefinition {
   name: string;
