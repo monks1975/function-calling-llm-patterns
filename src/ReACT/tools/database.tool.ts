@@ -1,12 +1,8 @@
-// ~/src/REACT-COT/tools/database.ts
+// ~/src/ReACT/tools/database.tool.ts
 
 import { z } from 'zod';
 
-import {
-  handle_tool_error,
-  log_tool,
-  zod_schema_to_description,
-} from './helpers';
+import { handle_tool_error, zod_schema_to_text } from './helpers';
 
 import type { ToolResponse } from './helpers';
 
@@ -57,8 +53,7 @@ export const database_schema = z.object({
 
 export type DatabaseQuery = z.infer<typeof database_schema>;
 
-export const database_tool_json_schema =
-  zod_schema_to_description(database_schema);
+export const database_tool_json_schema = zod_schema_to_text(database_schema);
 
 /**
  * Database Tool
@@ -67,7 +62,7 @@ export const database_tool_json_schema =
  * Validates input using Zod schema and returns query results as JSON string.
  *
  * Input: Database query parameters (collection, filters, sort, pagination, fields)
- * Output: Object containing query results as JSON string or error message
+ * Output: Object containing query results as JSON stringified result or error
  *
  * Example:
  * Input: { collection: "books", filter: [{field: "genre", operator: "eq", value: "fiction"}] }
@@ -96,10 +91,6 @@ export const database_tool = async ({
       sort,
       pagination,
       fields,
-    });
-
-    log_tool.tool('database', validated_input, {
-      results: JSON.stringify(validated_input),
     });
 
     // For now, return a not available message, but structured to show the query was valid

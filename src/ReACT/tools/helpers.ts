@@ -1,18 +1,11 @@
-// ~/src/REACT-COT/tools/helpers.ts
+// ~/src/ReACT/tools/helpers.ts
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 
 export interface ToolResponse {
-  results?: string;
+  result?: string;
   error?: string;
 }
-
-export const log_tool = {
-  tool: (name: string, input: any, output: ToolResponse) => {
-    console.log(`\n🔧 ${name} Tool`);
-  },
-};
 
 export const handle_tool_error = (
   tool_name: string,
@@ -31,22 +24,7 @@ export const handle_tool_error = (
   return { error: `${error_message} ${error_log}`.trim() };
 };
 
-type ZodStringCheck = {
-  kind: string;
-} & (
-  | { kind: 'min'; value: number }
-  | { kind: 'max'; value: number }
-  | { kind: 'length'; value: number }
-  | { kind: 'email' }
-  | { kind: 'url' }
-  | { kind: 'uuid' }
-  | { kind: 'cuid' }
-  | { kind: 'includes'; value: string }
-  | { kind: 'startsWith'; value: string }
-  | { kind: 'endsWith'; value: string }
-);
-
-export function zod_schema_to_description(schema: z.ZodType): string {
+export function zod_schema_to_text(schema: z.ZodType): string {
   if (schema instanceof z.ZodObject) {
     const shape = schema._def.shape();
     const entries = Object.entries(shape);

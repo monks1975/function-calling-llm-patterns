@@ -3,21 +3,28 @@
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 
-interface Message {
-  role: 'user' | 'assistant';
-  content:
-    | string
-    | {
-        thought: string;
-        action: string;
-        input: string;
-        [key: string]: string; // For any additional fields
-      };
+// Define the possible response structures
+interface ReActResponse {
+  thought: string;
+  action?: string;
+  input?: any;
+  final_answer?: string;
 }
 
-type Example = Message[];
+interface ExampleUserMessage {
+  role: 'user';
+  content: string;
+}
 
-function convert_to_training_format(examples: Example[]): string {
+interface ExampleAssistantMessage {
+  role: 'assistant';
+  content: ReActResponse;
+}
+
+// Make Example type more explicit - user followed by assistant
+type TrainingExample = [ExampleUserMessage, ExampleAssistantMessage];
+
+function convert_to_training_format(examples: TrainingExample[]): string {
   return examples
     .map((conversation) => {
       return conversation
@@ -41,11 +48,13 @@ function convert_to_training_format(examples: Example[]): string {
 // Load and convert YAML file
 function load_and_convert_yaml(file_path: string): string {
   const file_content = fs.readFileSync(file_path, 'utf8');
-  const yaml_content = yaml.load(file_content) as { examples: Example[] };
+  const yaml_content = yaml.load(file_content) as {
+    examples: TrainingExample[];
+  };
   return convert_to_training_format(yaml_content.examples);
 }
 
-// Example usage:
+// Example message format
 const yamlString = `
 examples:
   - - role: user
@@ -65,7 +74,7 @@ examples:
         input: "capital of France"
 `;
 
-const data = yaml.load(yamlString) as { examples: Example[] };
+const data = yaml.load(yamlString) as { examples: TrainingExample[] };
 const formatted = convert_to_training_format(data.examples);
 
 export { convert_to_training_format, load_and_convert_yaml };

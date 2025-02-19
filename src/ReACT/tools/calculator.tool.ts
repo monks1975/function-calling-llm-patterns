@@ -1,13 +1,9 @@
-// ~/src/REACT-COT/tools/calculator.ts
+// ~/src/ReACT/tools/calculator.tool.ts
 
 import { z } from 'zod';
 import * as math from 'mathjs';
 
-import {
-  handle_tool_error,
-  log_tool,
-  zod_schema_to_description,
-} from './helpers';
+import { handle_tool_error, zod_schema_to_text } from './helpers';
 
 import type { ToolResponse } from './helpers';
 
@@ -15,9 +11,9 @@ export const schema = z.object({
   expression: z.string().min(1, 'Expression is required'),
 });
 
-export const json_schema = zod_schema_to_description(schema);
+export const text_schema = zod_schema_to_text(schema);
 
-export type CalculatorInput = z.infer<typeof schema>;
+export type CalculatorToolParams = z.infer<typeof schema>;
 
 /**
  * Calculator Tool
@@ -41,14 +37,13 @@ export type CalculatorInput = z.infer<typeof schema>;
 
 export const calculator_tool = async ({
   expression = '',
-}: CalculatorInput): Promise<ToolResponse> => {
+}: CalculatorToolParams): Promise<ToolResponse> => {
   try {
     // Validate input
-    const result = schema.parse({ expression });
+    const validated = schema.parse({ expression });
+    const math_result = math.evaluate(validated.expression);
 
-    const math_result = math.evaluate(result.expression);
-    log_tool.tool('calculator', result, { results: math_result.toString() });
-    return { results: math_result.toString() };
+    return { result: math_result.toString() };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(

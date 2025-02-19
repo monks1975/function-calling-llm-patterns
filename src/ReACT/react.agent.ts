@@ -1,67 +1,94 @@
 // ~/src/ReACT/react-agent.ts
 
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { convert_tools_for_prompt } from './tools/repository';
-import { get_tools_by_names } from './tools/repository';
-import { load_and_convert_yaml } from './helpers';
 import { red, green, inverse } from 'ansis';
 import * as path from 'path';
+
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import {
+  convert_tools_for_prompt,
+  create_tools_from_config,
+  get_examples_for_tools,
+} from './tools/repository';
+
+import Handlebars from 'handlebars';
+import { load_and_convert_yaml } from './helpers';
 import OpenAI from 'openai';
 
-import type { Tool } from './tools/repository';
+import type { ToolDefinition, ToolsConfig } from './tools/repository';
+import type { ToolResponse } from './tools/helpers';
 
 interface ReActResponse {
-  thought?: string;
+  thought: string;
   action?: string;
   input?: any;
   observation?: string;
   final_answer?: string;
 }
 
-interface ToolFunction {
-  name: string;
-  description: string;
-  execute: (input: any) => Promise<any>;
-}
-
 export class ReActAgent {
   private openai: OpenAI;
-  private tools: Map<string, Tool>;
+  private tools: Map<string, ToolDefinition>;
   private messages: ChatCompletionMessageParam[];
   private max_iterations: number;
   private base_few_shot_examples: string;
-  constructor(openai: OpenAI) {
+
+  constructor(openai: OpenAI, tools_config: ToolsConfig) {
     this.openai = openai;
     this.tools = new Map();
     this.max_iterations = 10;
 
     this.base_few_shot_examples = load_and_convert_yaml(
-      path.join(__dirname, 'base-few-shot.yaml')
+      path.join(__dirname, 'react.examples.yaml')
     );
 
-    // Initialize with calculator and search tools
-    const available_tools = get_tools_by_names(['calculator', 'search_web']);
+    // Initialize tools from configuration
+    const available_tools = create_tools_from_config(tools_config);
 
+    // Store tools by their primary name only
     available_tools.forEach((tool) => {
       this.tools.set(tool.name.toLowerCase(), tool);
     });
 
+    // Get tool-specific examples
+    const tool_examples = get_examples_for_tools(tools_config);
+
     // Convert tools to a format suitable for the prompt
     const tools_for_prompt = convert_tools_for_prompt(available_tools);
 
-    const system_content =
-      'You are a ReAct agent that thinks step by step to solve problems.\n\n' +
-      'You will respond in JSON format matching exactly the format shown in these examples.\n' +
-      'Note that <user> and <assistant> tags are not part of the JSON response:\n\n' +
-      this.base_few_shot_examples +
-      '\n\n' +
-      'Available Tools:\n\n' +
-      tools_for_prompt +
-      '\n\n' +
-      'Each response must be valid JSON and contain at least a "thought" field.\n' +
-      'Include "action" and "input" fields when you need to use a tool.\n' +
-      'Only include a "final_answer" field when you have reached the solution.\n' +
-      'Never include an "observation" field - that will always come from a tool.';
+    const system_template = Handlebars.compile(
+      `
+You are a ReAct agent that thinks step by step to solve problems.
+You have access to a set of tools that are specific to the user's needs.
+
+AVAILABLE TOOLS:
+
+{{{tools_for_prompt}}}
+
+You will respond in JSON format matching exactly the format shown in these examples.
+Note that <user> and <assistant> tags are not part of the JSON response:
+
+{{{base_few_shot_examples}}}
+
+{{#if tool_examples}}
+Tool-specific examples:
+
+{{{tool_examples}}}
+
+{{/if}}
+Each response must be valid JSON and contain at least a "thought" field.
+Include "action" and "input" fields when you need to use a tool.
+Only include a "final_answer" field when you have reached the solution.
+Never include an "observation" field - that will always come from a tool.
+      `.trim()
+    );
+
+    const system_content = system_template({
+      tools_for_prompt,
+      base_few_shot_examples: this.base_few_shot_examples,
+      tool_examples,
+    });
+
+    // console.log(system_content);
 
     this.messages = [
       {
@@ -77,31 +104,67 @@ export class ReActAgent {
     }
 
     const tool = this.tools.get(action.toLowerCase());
+
     if (!tool) {
+      const available_tools = Array.from(this.tools.values())
+        .map((t) => t.name)
+        .join(', ');
+
       throw new Error(
-        `Tool '${action}' not found. Available tools are: ${Array.from(
-          this.tools.keys()
-        ).join(', ')}`
+        `Tool '${action}' not found. Available tools are: ${available_tools}`
       );
     }
 
-    // Parse the input if it's a string (handles JSON string inputs)
-    const parsed_input = typeof input === 'string' ? JSON.parse(input) : input;
-    const result = await tool.function(parsed_input);
-    return result.results || result.error || 'No result returned from tool';
+    try {
+      // Parse the input if it's a string (handles JSON string inputs)
+      const parsed_input =
+        typeof input === 'string' ? JSON.parse(input) : input;
+
+      if (!parsed_input) {
+        throw new Error('Tool input cannot be null or undefined');
+      }
+
+      const response = (await tool.execute(parsed_input)) as ToolResponse;
+
+      // Add defensive check for response object
+      if (!response) {
+        return 'Tool execution returned no response';
+      }
+
+      return (
+        response.result ||
+        response.error ||
+        'Tool execution returned no response'
+      );
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`Invalid JSON input for tool: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  private get_context_messages(): ChatCompletionMessageParam[] {
+    const systemMessage = this.messages[0]; // system
+    const recentMessages = this.messages.slice(1).slice(-5); // last 5 messages
+    return [systemMessage, ...recentMessages];
   }
 
   async answer(question: string) {
+    if (!question || typeof question !== 'string') {
+      throw new Error('Question must be a non-empty string');
+    }
+
     this.messages.push({ role: 'user', content: question });
     let iterations = 0;
 
     while (iterations < this.max_iterations) {
       iterations++;
 
-      // Get next step from LLM
+      // Get next step from LLM using truncated context
       const stream = await this.openai.chat.completions.create({
         model: 'Qwen/Qwen2-VL-72B-Instruct',
-        messages: this.messages,
+        messages: this.get_context_messages(),
         stream: true,
       });
 
@@ -117,14 +180,8 @@ export class ReActAgent {
       try {
         const response: ReActResponse = JSON.parse(response_text);
 
-        // Log the thought process
-        // if (response.thought) {
-        //   //console.log('\nThought:', response.thought);
-        // }
-
         // If we have a final answer, we're done
         if (response.final_answer) {
-          //console.log('\nFinal Answer:', response.final_answer);
           return response.final_answer;
         }
 
@@ -134,6 +191,7 @@ export class ReActAgent {
             response.action,
             response.input
           );
+
           log_to_console('info', '[Tool Observation]', observation);
 
           // Add the observation to the message history

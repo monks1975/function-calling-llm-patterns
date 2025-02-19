@@ -4,11 +4,7 @@ import 'dotenv/config';
 
 import OpenAI from 'openai';
 
-import { ReActAgent } from './react-agent';
-
-import { generate_system_prompt } from './instructions';
-import { get_tools_by_names } from './tools/repository';
-import { convert_tools_for_prompt } from './tools/repository';
+import { ReActAgent } from './react.agent';
 
 import * as readline from 'readline';
 
@@ -28,8 +24,28 @@ const openai = new OpenAI({
   apiKey: api_key,
 });
 
+// Configure which tools to enable and their configurations
+const tools_config = {
+  calculator: {
+    enabled: true,
+  },
+  search_web: {
+    enabled: true,
+  },
+  library: {
+    enabled: true,
+    config: {
+      library_name: 'Steve Jobs Isaacson Biography Library',
+      library_description:
+        'A library focused on the biography of Steve Jobs by Walter Isaacson. It contains detailed information about Steve Jobs life, work, and leadership at Apple.',
+      library_uuid: process.env.DOJO_API_LIBRARY_UUID,
+    },
+  },
+};
+
 async function main() {
-  const agent = new ReActAgent(openai);
+  const agent = new ReActAgent(openai, tools_config);
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

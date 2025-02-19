@@ -1,13 +1,8 @@
-// ~/src/REACT-COT/tools/search.ts
+// ~/src/ReACT/tools/search.tool.ts
 
+import { handle_tool_error, zod_schema_to_text } from './helpers';
 import { search, SafeSearchType } from 'duck-duck-scrape';
 import { z } from 'zod';
-
-import {
-  handle_tool_error,
-  log_tool,
-  zod_schema_to_description,
-} from './helpers';
 
 import type { SearchResult, SearchOptions } from 'duck-duck-scrape';
 import type { ToolResponse } from './helpers';
@@ -16,9 +11,9 @@ export const schema = z.object({
   query: z.string().min(1, 'Search query is required'),
 });
 
-export const json_schema = zod_schema_to_description(schema);
+export const text_schema = zod_schema_to_text(schema);
 
-export type SearchWebInput = z.infer<typeof schema>;
+export type SearchWebToolParams = z.infer<typeof schema>;
 
 /**
  * Search Web Tool
@@ -27,7 +22,7 @@ export type SearchWebInput = z.infer<typeof schema>;
  * Validates input using Zod schema and returns search results as JSON string.
  *
  * Input: Search query as a string
- * Output: Object containing search results as JSON string or error message
+ * Output: Object containing search results as JSON stringified result or error
  *
  * Example:
  * Input: "latest news"
@@ -43,7 +38,7 @@ export type SearchWebInput = z.infer<typeof schema>;
 
 export const search_web_tool = async ({
   query = '',
-}: SearchWebInput): Promise<ToolResponse> => {
+}: SearchWebToolParams): Promise<ToolResponse> => {
   try {
     // Validate input
     const validated_input = schema.parse({ query });
@@ -70,11 +65,7 @@ export const search_web_tool = async ({
       })
       .slice(0, 5);
 
-    log_tool.tool('search-web', validated_input, {
-      results: JSON.stringify(picked_results[0]),
-    });
-
-    return { results: JSON.stringify(picked_results) };
+    return { result: JSON.stringify(picked_results) };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(
