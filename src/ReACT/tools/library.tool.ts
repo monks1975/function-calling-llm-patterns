@@ -42,7 +42,7 @@ export function create_library_tool(
 ): ToolDefinition {
   return {
     name: library_name,
-    alternative_names: ['Knowledge Base', 'Library'],
+    alternative_names: ['Knowledge Base', 'Library', 'Search Library'],
     description: `Search the ${library_name} knowledge base: ${library_description}`,
     schema: text_schema,
 

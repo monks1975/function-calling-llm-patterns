@@ -63,7 +63,7 @@ const library_examples = load_and_convert_yaml(
 const calculator_factory: ToolFactory = {
   create: () => ({
     name: 'Calculator',
-    alternative_names: ['Calc', 'Calculator Math', 'Math'],
+    alternative_names: ['Calculate', 'Math'],
     description: 'A tool for calculating mathematical expressions',
     schema: calculator_text_schema,
     execute: calculator_tool,
@@ -75,7 +75,7 @@ const calculator_factory: ToolFactory = {
 const search_web_factory: ToolFactory = {
   create: () => ({
     name: 'Search Web',
-    alternative_names: ['Search', 'Search Internet'],
+    alternative_names: ['Google', 'Search', 'Search Internet'],
     description: 'A tool for searching the web',
     schema: search_web_text_schema,
     execute: search_web_tool,

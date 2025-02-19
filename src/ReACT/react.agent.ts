@@ -1,41 +1,44 @@
 // ~/src/ReACT/react-agent.ts
 
 import { red, green, inverse } from 'ansis';
+import { z } from 'zod';
 import * as path from 'path';
+import Handlebars from 'handlebars';
+import OpenAI from 'openai';
 
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+
 import {
   convert_tools_for_prompt,
   create_tools_from_config,
   get_examples_for_tools,
 } from './tools/repository';
 
-import Handlebars from 'handlebars';
 import { load_and_convert_yaml } from './helpers';
-import OpenAI from 'openai';
+import { react_response_schema } from './react.schema';
 
 import type { ToolDefinition, ToolsConfig } from './tools/repository';
 import type { ToolResponse } from './tools/helpers';
 
-interface ReActResponse {
-  thought: string;
-  action?: string;
-  input?: any;
-  observation?: string;
-  final_answer?: string;
-}
+type ReActResponse = z.infer<typeof react_response_schema>;
 
 export class ReActAgent {
   private openai: OpenAI;
   private tools: Map<string, ToolDefinition>;
+  private tool_name_map: Map<string, string>;
   private messages: ChatCompletionMessageParam[];
   private max_iterations: number;
   private base_few_shot_examples: string;
 
-  constructor(openai: OpenAI, tools_config: ToolsConfig) {
+  constructor(
+    openai: OpenAI,
+    tools_config: ToolsConfig,
+    maxIterations: number = 15
+  ) {
     this.openai = openai;
     this.tools = new Map();
-    this.max_iterations = 10;
+    this.tool_name_map = new Map();
+    this.max_iterations = maxIterations;
 
     this.base_few_shot_examples = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
@@ -44,9 +47,20 @@ export class ReActAgent {
     // Initialize tools from configuration
     const available_tools = create_tools_from_config(tools_config);
 
-    // Store tools by their primary name only
+    // Store tools by their primary name and build alternative name mapping
     available_tools.forEach((tool) => {
-      this.tools.set(tool.name.toLowerCase(), tool);
+      const primary_name = tool.name.toLowerCase();
+      this.tools.set(primary_name, tool);
+
+      // Add mapping for the primary name itself
+      this.tool_name_map.set(primary_name, primary_name);
+
+      // Add mappings for alternative names if they exist
+      if (tool.alternative_names) {
+        tool.alternative_names.forEach((alt_name) => {
+          this.tool_name_map.set(alt_name.toLowerCase(), primary_name);
+        });
+      }
     });
 
     // Get tool-specific examples
@@ -59,6 +73,10 @@ export class ReActAgent {
       `
 You are a ReAct agent that thinks step by step to solve problems.
 You have access to a set of tools that are specific to the user's needs.
+
+IMPORTANT: You have a maximum of {{max_iterations}} iterations to solve each problem.
+Each time you use a tool counts as one iteration. Be efficient with your actions and
+aim to reach a final answer before running out of iterations.
 
 AVAILABLE TOOLS:
 
@@ -86,6 +104,7 @@ Never include an "observation" field - that will always come from a tool.
       tools_for_prompt,
       base_few_shot_examples: this.base_few_shot_examples,
       tool_examples,
+      max_iterations: this.max_iterations,
     });
 
     // console.log(system_content);
@@ -103,7 +122,9 @@ Never include an "observation" field - that will always come from a tool.
       throw new Error('Invalid action: action must be a non-empty string');
     }
 
-    const tool = this.tools.get(action.toLowerCase());
+    const normalized_action = action.toLowerCase();
+    const primary_name = this.tool_name_map.get(normalized_action);
+    const tool = primary_name ? this.tools.get(primary_name) : null;
 
     if (!tool) {
       const available_tools = Array.from(this.tools.values())
@@ -116,7 +137,7 @@ Never include an "observation" field - that will always come from a tool.
     }
 
     try {
-      // Parse the input if it's a string (handles JSON string inputs)
+      // Parse the input if it's a string
       const parsed_input =
         typeof input === 'string' ? JSON.parse(input) : input;
 
@@ -137,9 +158,6 @@ Never include an "observation" field - that will always come from a tool.
         'Tool execution returned no response'
       );
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new Error(`Invalid JSON input for tool: ${error.message}`);
-      }
       throw error;
     }
   }
@@ -161,11 +179,22 @@ Never include an "observation" field - that will always come from a tool.
     while (iterations < this.max_iterations) {
       iterations++;
 
+      // When we've hit max iterations, add a prompt to wrap up
+      if (iterations === this.max_iterations) {
+        this.messages.push({
+          role: 'user',
+          content: `You have reached the maximum number of iterations (${this.max_iterations}). Please provide a final_answer explaining that you couldn't complete the task and briefly explain why.`,
+        });
+      }
+
       // Get next step from LLM using truncated context
       const stream = await this.openai.chat.completions.create({
-        model: 'Qwen/Qwen2-VL-72B-Instruct',
+        model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
         messages: this.get_context_messages(),
         stream: true,
+        max_tokens: 8192,
+        temperature: 0.5,
+        response_format: { type: 'json_object' },
       });
 
       let response_text = '';
@@ -178,27 +207,46 @@ Never include an "observation" field - that will always come from a tool.
       }
 
       try {
-        const response: ReActResponse = JSON.parse(response_text);
+        // Add pre-parsing validation
+        if (!response_text.trim()) {
+          throw new Error('Empty response from model');
+        }
 
-        // If we have a final answer, we're done
-        if (response.final_answer) {
-          return response.final_answer;
+        // First ensure we have the canonical object form before validation
+        const prepare_react_response = (response: unknown): unknown => {
+          if (typeof response === 'string') {
+            try {
+              return JSON.parse(response);
+            } catch (e) {
+              throw new SyntaxError(`Invalid JSON: ${response}`);
+            }
+          }
+          return response;
+        };
+
+        let parsed_json = prepare_react_response(response_text);
+
+        const parsed_response: ReActResponse =
+          react_response_schema.parse(parsed_json);
+
+        // Add the assistant's response to history before executing action
+        this.messages.push({
+          role: 'assistant',
+          content: response_text,
+        });
+
+        if (parsed_response.final_answer) {
+          return parsed_response.final_answer;
         }
 
         // Execute action if specified
-        if (response.action && response.input) {
+        if (parsed_response.action && parsed_response.input !== undefined) {
           const observation = await this.execute_action(
-            response.action,
-            response.input
+            parsed_response.action,
+            parsed_response.input
           );
 
           log_to_console('info', '[Tool Observation]', observation);
-
-          // Add the observation to the message history
-          this.messages.push({
-            role: 'assistant',
-            content: response_text,
-          });
 
           this.messages.push({
             role: 'user',
@@ -210,8 +258,14 @@ Never include an "observation" field - that will always come from a tool.
 
         if (error instanceof SyntaxError) {
           error_observation = `Error: Invalid JSON response from model. Response was: "${response_text}". Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }`;
+        } else if (error instanceof z.ZodError) {
+          error_observation = `Error: Invalid response structure: ${error.errors
+            .map((e) => e.message)
+            .join(', ')}`;
         } else {
-          error_observation = `Error: Unexpected error occurred: ${error}`;
+          error_observation = `Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`;
         }
 
         log_to_console('error', '[Tool Observation]', error_observation);
@@ -230,9 +284,27 @@ Never include an "observation" field - that will always come from a tool.
         // Continue the loop to let the model try again
         continue;
       }
+
+      // When max iterations is reached, return the context of what happened
+      if (iterations === this.max_iterations) {
+        const history = this.messages
+          .filter((m) => m.role === 'assistant')
+          .map((m) => {
+            try {
+              const parsed = JSON.parse(m.content as string);
+              return parsed.thought;
+            } catch {
+              return m.content;
+            }
+          })
+          .slice(-3)
+          .join('\n');
+
+        return `Error: Maximum iterations (${this.max_iterations}) reached. Recent thoughts:\n${history}\n\nConsider increasing max_iterations if the problem is complex or try rephrasing your question.`;
+      }
     }
 
-    return 'Error: Maximum iterations reached';
+    return 'Error: Maximum iterations reached unexpectedly';
   }
 }
 
