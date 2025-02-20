@@ -37,7 +37,7 @@ examples:
       content:
         thought: 'I need to search for current population data of Tokyo.'
         action: 'Search'
-        input: '{"query": "Tokyo current population 2024"}'
+        input: '{"query": "Tokyo current population as of now"}'
 
   # Example 5
   - - role: user
@@ -46,7 +46,7 @@ examples:
       content:
         thought: 'I should search for the current President of France to ensure accuracy.'
         action: 'Search'
-        input: '{"query": "current President of France 2024"}'
+        input: '{"query": "current President of France"}'
 
   # Example 6
   - - role: user
@@ -64,7 +64,7 @@ examples:
       content:
         thought: 'I need to first find the GDP of USA'
         action: 'Search'
-        input: '{"query": "current GDP of United States 2024"}'
+        input: '{"query": "current GDP of United States"}'
 
   # Example 8: following the tool observation
   - - role: user
@@ -73,7 +73,7 @@ examples:
       content:
         thought: "Now I need to find China's GDP to compare"
         action: 'Search'
-        input: '{"query": "current GDP of China 2024"}'
+        input: '{"query": "current GDP of China"}'
 
   # Example 9
   - - role: user
