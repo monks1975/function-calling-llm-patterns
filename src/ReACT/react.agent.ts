@@ -28,7 +28,6 @@ export class ReActAgent {
   private tool_name_map: Map<string, string>;
   private messages: ChatCompletionMessageParam[];
   private max_iterations: number;
-  private base_few_shot: string;
 
   constructor(
     openai: OpenAI,
@@ -40,7 +39,7 @@ export class ReActAgent {
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
 
-    this.base_few_shot = load_and_convert_yaml(
+    const base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
     );
 
@@ -68,7 +67,7 @@ export class ReActAgent {
     const system_instructions = Handlebars.compile(SYSTEM_INSTRUCTIONS);
 
     const interpolated_system_instructions = system_instructions({
-      base_few_shot: this.base_few_shot,
+      base_few_shot: base_few_shot,
       tools: tools_description,
       tools_few_shot: tools_few_shot,
       max_iterations: this.max_iterations,
