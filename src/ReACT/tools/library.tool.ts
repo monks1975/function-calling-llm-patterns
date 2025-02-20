@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import type { components, operations } from '../types/api';
 import type { ToolResponse } from './helpers';
-import type { ToolDefinition } from './repository';
+import type { ToolDefinition } from './setup';
 
 // API response types from the OpenAPI spec
 type ChunkSearchResponse =

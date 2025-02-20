@@ -9,15 +9,15 @@ import OpenAI from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 import {
-  convert_tools_for_prompt,
-  create_tools_from_config,
-  get_examples_for_tools,
-} from './tools/repository';
+  get_tool_examples,
+  get_tools_for_prompt,
+  init_tools_from_config,
+} from './tools/setup';
 
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
 
-import type { ToolDefinition, ToolsConfig } from './tools/repository';
+import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
@@ -45,7 +45,7 @@ export class ReActAgent {
     );
 
     // Initialize tools from configuration
-    const available_tools = create_tools_from_config(tools_config);
+    const available_tools = init_tools_from_config(tools_config);
 
     // Store tools by their primary name and build alternative name mapping
     available_tools.forEach((tool) => {
@@ -64,10 +64,10 @@ export class ReActAgent {
     });
 
     // Get tool-specific examples
-    const tool_examples = get_examples_for_tools(tools_config);
+    const tool_examples = get_tool_examples(tools_config);
 
     // Convert tools to a format suitable for the prompt
-    const tools_for_prompt = convert_tools_for_prompt(available_tools);
+    const tools_for_prompt = get_tools_for_prompt(available_tools);
 
     const system_template = Handlebars.compile(
       `

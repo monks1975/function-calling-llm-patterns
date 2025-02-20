@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/repository.ts
+// ~/src/ReACT/tools/setup.ts
 
 import * as path from 'path';
 
@@ -107,9 +107,7 @@ export const available_tools = {
   library: library_factory,
 } as const;
 
-export function create_tools_from_config(
-  config: ToolsConfig
-): ToolDefinition[] {
+export function init_tools_from_config(config: ToolsConfig): ToolDefinition[] {
   const tools: ToolDefinition[] = [];
 
   for (const [tool_name, tool_config] of Object.entries(config)) {
@@ -149,7 +147,7 @@ export function create_tools_from_config(
   return tools;
 }
 
-export function convert_tools_for_prompt(tools: ToolDefinition[]): string {
+export function get_tools_for_prompt(tools: ToolDefinition[]): string {
   return tools
     .map((tool) => {
       let toolDescription = `Tool: ${tool.name}\n`;
@@ -166,7 +164,7 @@ export function convert_tools_for_prompt(tools: ToolDefinition[]): string {
 }
 
 // get examples for enabled tools
-export function get_examples_for_tools(config: ToolsConfig): string {
+export function get_tool_examples(config: ToolsConfig): string {
   const examples: string[] = [];
 
   for (const [tool_name, tool_config] of Object.entries(config)) {
