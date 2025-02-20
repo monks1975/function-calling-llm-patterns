@@ -6,7 +6,9 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { load_and_convert_yaml } from './helpers';
+import { react_response_schema } from './react.schema';
+import { SYSTEM_INSTRUCTIONS } from './react.instructions';
 
 import {
   get_tool_examples,
@@ -14,9 +16,7 @@ import {
   init_tools_from_config,
 } from './tools/setup';
 
-import { load_and_convert_yaml } from './helpers';
-import { react_response_schema } from './react.schema';
-
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
 
@@ -28,7 +28,7 @@ export class ReActAgent {
   private tool_name_map: Map<string, string>;
   private messages: ChatCompletionMessageParam[];
   private max_iterations: number;
-  private base_few_shot_examples: string;
+  private base_few_shot: string;
 
   constructor(
     openai: OpenAI,
@@ -40,7 +40,7 @@ export class ReActAgent {
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
 
-    this.base_few_shot_examples = load_and_convert_yaml(
+    this.base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
     );
 
@@ -63,55 +63,21 @@ export class ReActAgent {
       }
     });
 
-    // Get tool-specific examples
-    const tool_examples = get_tool_examples(tools_config);
+    const tools_few_shot = get_tool_examples(tools_config);
+    const tools_description = get_tools_for_prompt(available_tools);
+    const system_instructions = Handlebars.compile(SYSTEM_INSTRUCTIONS);
 
-    // Convert tools to a format suitable for the prompt
-    const tools_for_prompt = get_tools_for_prompt(available_tools);
-
-    const system_template = Handlebars.compile(
-      `
-You are a ReAct agent that thinks step by step to solve problems.
-You have access to a set of tools that are specific to the user's needs.
-
-IMPORTANT: You have a maximum of {{max_iterations}} iterations to solve each problem.
-Each time you use a tool counts as one iteration. Be efficient with your actions and aim to reach a final answer before running out of iterations.
-
-AVAILABLE TOOLS:
-
-{{{tools_for_prompt}}}
-
-You will respond in JSON format matching exactly the format shown in these examples.
-Note that <user> and <assistant> tags are not part of the JSON response:
-
-{{{base_few_shot_examples}}}
-
-{{#if tool_examples}}
-Tool-specific examples:
-
-{{{tool_examples}}}
-{{/if}}
-
-Each response must be valid JSON and contain at least a "thought" field.
-Include "action" and "input" fields when you need to use a tool.
-Only include a "final_answer" field when you have reached the solution.
-Never include an "observation" field - that will always come from a tool.
-      `.trim()
-    );
-
-    const system_content = system_template({
-      tools_for_prompt,
-      base_few_shot_examples: this.base_few_shot_examples,
-      tool_examples,
+    const interpolated_system_instructions = system_instructions({
+      base_few_shot: this.base_few_shot,
+      tools: tools_description,
+      tools_few_shot: tools_few_shot,
       max_iterations: this.max_iterations,
     });
-
-    // console.log(system_content);
 
     this.messages = [
       {
         role: 'system',
-        content: system_content,
+        content: interpolated_system_instructions,
       },
     ];
   }
