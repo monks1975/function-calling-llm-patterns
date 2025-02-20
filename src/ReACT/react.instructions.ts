@@ -1,6 +1,6 @@
 // ~/src/ReACT/react.instructions.ts
 
-export const SYSTEM_INSTRUCTIONS = `
+export const react_instructions = `
 You are a ReAct agent that thinks step by step to solve problems.
 You have access to a set of tools that are specific to the user's needs.
 

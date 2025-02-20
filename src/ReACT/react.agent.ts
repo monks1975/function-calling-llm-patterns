@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
-import { SYSTEM_INSTRUCTIONS } from './react.instructions';
+import { react_instructions } from './react.instructions';
 
 import {
   get_tool_examples,
@@ -64,9 +64,9 @@ export class ReActAgent {
 
     const tools_few_shot = get_tool_examples(tools_config);
     const tools_description = get_tools_for_prompt(available_tools);
-    const system_instructions = Handlebars.compile(SYSTEM_INSTRUCTIONS);
+    const base_system_instructions = Handlebars.compile(react_instructions);
 
-    const interpolated_system_instructions = system_instructions({
+    const system_instructions = base_system_instructions({
       base_few_shot: base_few_shot,
       tools: tools_description,
       tools_few_shot: tools_few_shot,
@@ -76,7 +76,7 @@ export class ReActAgent {
     this.messages = [
       {
         role: 'system',
-        content: interpolated_system_instructions,
+        content: system_instructions,
       },
     ];
   }
