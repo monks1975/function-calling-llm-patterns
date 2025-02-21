@@ -1,27 +1,43 @@
 // ~/src/ReACT/tools/helpers.ts
 
 import { z } from 'zod';
+import { ApiRequestError } from '../services/library.service';
 
 export interface ToolResponse {
   result?: string;
   error?: string;
 }
 
+// Formats tool errors in a consistent way that can be recognized by the ReACT
+// agent
 export const handle_tool_error = (
   tool_name: string,
   message?: string,
   error?: unknown
 ): ToolResponse => {
-  let error_log = '';
+  // Default error message if none provided
+  let error_message =
+    message || `An error occurred using the tool: ${tool_name}.`;
+
+  let error_details = '';
+
+  // Extract error details based on error type
   if (error instanceof Error) {
-    error_log = error.message;
+    error_details = error.message;
   } else if (error instanceof z.ZodError) {
-    error_log = error.errors.map((e) => e.message).join(', ');
+    error_details = error.errors.map((e) => e.message).join(', ');
+  } else if (error instanceof ApiRequestError) {
+    error_details = error.toString();
+  } else if (error) {
+    error_details = String(error);
   }
 
-  const error_message =
-    message || `An error occurred using the tool: ${tool_name}.`;
-  return { error: `${error_message} ${error_log}`.trim() };
+  // Combine message and details
+  const full_error = error_details
+    ? `${error_message} Details: ${error_details}`
+    : error_message;
+
+  return { error: `Error: ${full_error}` };
 };
 
 export function zod_schema_to_text(schema: z.ZodType): string {

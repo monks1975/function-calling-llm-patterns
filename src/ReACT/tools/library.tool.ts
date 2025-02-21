@@ -1,12 +1,17 @@
 // ~/src/ReACT/tools/library.tool.ts
 
-import { api_fetch_and_parse_json } from '../services/library.service';
-import { handle_tool_error, zod_schema_to_text } from './helpers';
 import { z } from 'zod';
 
+import {
+  api_fetch_and_parse_json,
+  ApiRequestError,
+} from '../services/library.service';
+
+import { handle_tool_error, zod_schema_to_text } from './helpers';
+
 import type { components, operations } from '../types/api';
-import type { ToolResponse } from './helpers';
 import type { ToolDefinition } from './setup';
+import type { ToolResponse } from './helpers';
 
 // API response types from the OpenAPI spec
 type ChunkSearchResponse =
@@ -104,9 +109,11 @@ export const search_library_tool = async ({
     });
 
     if (!response.success) {
-      return handle_tool_error(
-        'search-library',
-        `API request failed: ${response.data.detail}`
+      throw new ApiRequestError(
+        `API request failed: ${response.data.detail}`,
+        response.status,
+        undefined,
+        response.data
       );
     }
 
@@ -132,6 +139,9 @@ export const search_library_tool = async ({
         'search-library',
         'Validation error: ' + error.errors.map((e) => e.message).join(', ')
       );
+    }
+    if (error instanceof ApiRequestError) {
+      return handle_tool_error('search-library', error.toString());
     }
     return handle_tool_error('search-library', undefined, error);
   }
