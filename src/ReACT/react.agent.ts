@@ -1,9 +1,9 @@
 // ~/src/ReACT/react-agent.ts
 
-import { red, green, inverse } from 'ansis';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
+import { EventEmitter } from 'events';
 
 import { AIChatStream, AIChatStreamConfig } from './ai.stream';
 import { load_and_convert_yaml } from './helpers';
@@ -22,10 +22,22 @@ import type { ToolResponse } from './tools/helpers';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
 
+export interface ReActEvents {
+  chunk: (chunk: string) => void;
+  'tool-observation': (observation: {
+    data: string;
+    is_error: boolean;
+  }) => void;
+  'final-answer': (answer: string) => void;
+  iteration: (count: number) => void;
+  error: (error: Error) => void;
+}
+
 export class ReActAgent extends AIChatStream {
   private tools: Map<string, ToolDefinition>;
   private tool_name_map: Map<string, string>;
   private max_iterations: number;
+  private emitter: EventEmitter;
 
   constructor(
     config: AIChatStreamConfig,
@@ -37,6 +49,7 @@ export class ReActAgent extends AIChatStream {
     this.tools = new Map();
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
+    this.emitter = new EventEmitter();
 
     const base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
@@ -78,6 +91,22 @@ export class ReActAgent extends AIChatStream {
     });
   }
 
+  public on<K extends keyof ReActEvents>(
+    event: K,
+    listener: ReActEvents[K]
+  ): this {
+    this.emitter.on(event, listener);
+    return this;
+  }
+
+  public off<K extends keyof ReActEvents>(
+    event: K,
+    listener: ReActEvents[K]
+  ): this {
+    this.emitter.off(event, listener);
+    return this;
+  }
+
   private async execute_action(action: string, input: any): Promise<string> {
     if (!action || typeof action !== 'string') {
       throw new Error('Invalid action: action must be a non-empty string');
@@ -110,13 +139,17 @@ export class ReActAgent extends AIChatStream {
 
       // Add defensive check for response object
       if (!response) {
-        return 'Tool execution returned no response';
+        throw new Error('Tool execution returned no response');
       }
 
+      // If the response contains an error, throw it
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Return the result or a default message if no result
       return (
-        response.result ||
-        response.error ||
-        'Tool execution returned no response'
+        response.result || 'Tool execution completed but returned no result'
       );
     } catch (error) {
       throw error;
@@ -139,6 +172,7 @@ export class ReActAgent extends AIChatStream {
 
     while (iterations < this.max_iterations) {
       iterations++;
+      this.emitter.emit('iteration', iterations);
 
       // When we've hit max iterations, add a prompt to wrap up
       if (iterations === this.max_iterations) {
@@ -158,8 +192,9 @@ export class ReActAgent extends AIChatStream {
           );
 
           stream.on('data', (chunk) => {
-            response += chunk.toString();
-            process.stdout.write(chunk.toString());
+            const chunk_str = chunk.toString();
+            response += chunk_str;
+            this.emitter.emit('chunk', chunk_str);
           });
 
           stream.on('end', () => {
@@ -200,6 +235,7 @@ export class ReActAgent extends AIChatStream {
         });
 
         if (parsed_response.final_answer) {
+          this.emitter.emit('final-answer', parsed_response.final_answer);
           return parsed_response.final_answer;
         }
 
@@ -210,7 +246,10 @@ export class ReActAgent extends AIChatStream {
             parsed_response.input
           );
 
-          log_to_console('info', '[Tool Observation]', observation);
+          this.emitter.emit('tool-observation', {
+            data: observation,
+            is_error: false,
+          });
 
           this.add_message({
             role: 'user',
@@ -221,23 +260,26 @@ export class ReActAgent extends AIChatStream {
         let error_observation: string;
 
         if (error instanceof SyntaxError) {
-          error_observation = `Error: Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }`;
+          error_observation =
+            'Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }';
         } else if (error instanceof z.ZodError) {
-          error_observation = `Error: Invalid response structure: ${error.errors
-            .map((e) => e.message)
-            .join(', ')}`;
+          error_observation =
+            'Invalid response structure: ' +
+            error.errors.map((e) => e.message).join(', ');
         } else {
-          error_observation = `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`;
+          error_observation =
+            error instanceof Error ? error.message : String(error);
         }
 
-        log_to_console('error', '[Tool Observation]', error_observation);
+        // Emit a single error observation event that includes both the error and observation
+        this.emitter.emit('tool-observation', {
+          data: `Error: ${error_observation}`,
+          is_error: true,
+        });
 
-        // Feed the error back to the model as an observation
         this.add_message({
           role: 'user',
-          content: `[Tool Observation] ${error_observation}`,
+          content: `[Tool Observation] Error: ${error_observation}`,
         });
 
         // Continue the loop to let the model try again
@@ -264,13 +306,5 @@ export class ReActAgent extends AIChatStream {
     }
 
     return 'Error: Maximum iterations reached unexpectedly';
-  }
-}
-
-function log_to_console(type: 'info' | 'error', tag: string, message: string) {
-  if (type === 'info') {
-    console.log(green`\n\n${inverse`${tag}`} ${message}\n`);
-  } else {
-    console.log(red`\n\n${inverse`${tag}`} ${message}\n`);
   }
 }

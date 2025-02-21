@@ -1,6 +1,7 @@
 #!/usr/bin/env -S npm run tsn -T
 
 import 'dotenv/config';
+import { cyan, green, inverse, red } from 'ansis';
 import * as readline from 'readline';
 
 import { ReActAgent } from './react.agent';
@@ -49,6 +50,30 @@ const tools_config = {
 async function main() {
   const agent = new ReActAgent(ai_config, tools_config);
 
+  // Set up event handlers
+  agent
+    .on('chunk', (chunk) => {
+      // Custom chunk handling could go here
+      // For now we'll keep the default stdout behavior
+      process.stdout.write(chunk);
+    })
+    .on('tool-observation', (observation) => {
+      log_to_console(
+        observation.is_error ? 'error' : 'info',
+        'Tool Observation',
+        observation.data
+      );
+    })
+    .on('final-answer', (answer) => {
+      log_to_console('info', 'Final Answer', answer);
+    })
+    .on('iteration', (count) => {
+      log_to_console('info', 'Iteration', count.toString());
+    })
+    .on('error', (error) => {
+      log_to_console('error', 'Error', error.message);
+    });
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -80,3 +105,11 @@ async function main() {
 }
 
 main().catch(console.error);
+
+function log_to_console(type: 'info' | 'error', tag: string, message: string) {
+  if (type === 'info') {
+    console.log(green`\n\n${inverse`${tag}`} ${message}\n`);
+  } else {
+    console.log(red`\n\n${inverse`${tag}`} ${message}\n`);
+  }
+}
