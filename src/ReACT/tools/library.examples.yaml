@@ -54,14 +54,14 @@ examples:
             'query': 'rate limiting implementation code examples token bucket sliding window',
           }
 
-  # Example 6 - Configuration options lookup
+  # Example 6 - Handle library API error gracefully
   - - role: user
-      content: 'What logging options are available?'
+      content: 'Error: API request failed: Unauthorized - API key may be invalid or missing | Status: 401 (Unauthorized)'
     - role: assistant
       content:
-        thought: 'The logging system is part of the framework. I should check its configuration options.'
-        action: 'Framework docs'
-        input: { 'query': 'logging configuration options levels setup' }
+        thought: 'The library search tool is experiencing authentication issues. I should try searching the web instead for this information.'
+        action: 'Search Web'
+        input: { 'query': 'Steve Wozniak Apple employment history timeline' }
 
   # Example 7 - Historical research
   - - role: user
