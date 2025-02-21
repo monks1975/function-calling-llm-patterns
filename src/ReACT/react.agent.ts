@@ -149,10 +149,27 @@ export class ReActAgent extends AIChatStream {
       }
 
       try {
-        const response_text = await this.stream_completion(
-          this.get_context_messages(),
-          { type: 'json_object' }
-        );
+        const response_text = await new Promise<string>((resolve, reject) => {
+          let response = '';
+
+          const stream = this.create_readable_stream(
+            this.get_context_messages(),
+            { type: 'json_object' }
+          );
+
+          stream.on('data', (chunk) => {
+            response += chunk.toString();
+            process.stdout.write(chunk.toString());
+          });
+
+          stream.on('end', () => {
+            resolve(response);
+          });
+
+          stream.on('error', (error) => {
+            reject(error);
+          });
+        });
 
         // Add pre-parsing validation
         if (!response_text.trim()) {

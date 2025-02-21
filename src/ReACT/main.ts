@@ -22,8 +22,8 @@ if (!api_key) {
 const ai_config: AIChatStreamConfig = {
   base_url: 'https://api.together.xyz/v1',
   api_key: api_key,
-  model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
-  max_tokens: 8192,
+  model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+  max_tokens: 6144,
   temperature: 0.5,
 };
 
