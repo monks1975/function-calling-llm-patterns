@@ -1,15 +1,14 @@
 #!/usr/bin/env -S npm run tsn -T
 
 import 'dotenv/config';
-
-import OpenAI from 'openai';
+import * as readline from 'readline';
 
 import { ReActAgent } from './react.agent';
 
-import * as readline from 'readline';
+import type { AIChatStreamConfig } from './ai.stream';
 
-// Check for API key
 const api_key = process.env.TOGETHER_API_KEY;
+
 if (!api_key) {
   console.error('Error: TOGETHER_API_KEY environment variable is not set');
   console.error('Please create a .env file based on .env.example');
@@ -19,10 +18,14 @@ if (!api_key) {
   process.exit(1);
 }
 
-const openai = new OpenAI({
-  baseURL: 'https://api.together.xyz/v1',
-  apiKey: api_key,
-});
+// Configure AI chat stream
+const ai_config: AIChatStreamConfig = {
+  base_url: 'https://api.together.xyz/v1',
+  api_key: api_key,
+  model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+  max_tokens: 8192,
+  temperature: 0.5,
+};
 
 // Configure which tools to enable and their configurations
 const tools_config = {
@@ -44,7 +47,7 @@ const tools_config = {
 };
 
 async function main() {
-  const agent = new ReActAgent(openai, tools_config);
+  const agent = new ReActAgent(ai_config, tools_config);
 
   const rl = readline.createInterface({
     input: process.stdin,

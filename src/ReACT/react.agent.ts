@@ -4,11 +4,11 @@ import { red, green, inverse } from 'ansis';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
-import OpenAI from 'openai';
 
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
 import { react_instructions } from './react.instructions';
+import { AIChatStream, AIChatStreamConfig } from './ai.stream';
 
 import {
   get_tool_examples,
@@ -22,19 +22,18 @@ import type { ToolResponse } from './tools/helpers';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
 
-export class ReActAgent {
-  private openai: OpenAI;
+export class ReActAgent extends AIChatStream {
   private tools: Map<string, ToolDefinition>;
   private tool_name_map: Map<string, string>;
-  private messages: ChatCompletionMessageParam[];
   private max_iterations: number;
 
   constructor(
-    openai: OpenAI,
+    config: AIChatStreamConfig,
     tools_config: ToolsConfig,
     max_iterations: number = 15
   ) {
-    this.openai = openai;
+    super(config);
+
     this.tools = new Map();
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
@@ -73,12 +72,10 @@ export class ReActAgent {
       max_iterations: this.max_iterations,
     });
 
-    this.messages = [
-      {
-        role: 'system',
-        content: system_instructions,
-      },
-    ];
+    this.add_message({
+      role: 'system',
+      content: system_instructions,
+    });
   }
 
   private async execute_action(action: string, input: any): Promise<string> {
@@ -127,8 +124,8 @@ export class ReActAgent {
   }
 
   private get_context_messages(): ChatCompletionMessageParam[] {
-    const systemMessage = this.messages[0]; // system
-    const recentMessages = this.messages.slice(1).slice(-5); // last 5 messages
+    const systemMessage = this.get_messages()[0]; // system
+    const recentMessages = this.get_messages().slice(1).slice(-5); // last 5 messages
     return [systemMessage, ...recentMessages];
   }
 
@@ -137,7 +134,7 @@ export class ReActAgent {
       throw new Error('Question must be a non-empty string');
     }
 
-    this.messages.push({ role: 'user', content: question });
+    this.add_message({ role: 'user', content: question });
     let iterations = 0;
 
     while (iterations < this.max_iterations) {
@@ -145,32 +142,18 @@ export class ReActAgent {
 
       // When we've hit max iterations, add a prompt to wrap up
       if (iterations === this.max_iterations) {
-        this.messages.push({
+        this.add_message({
           role: 'user',
           content: `You have reached the maximum number of iterations (${this.max_iterations}). Please provide a final_answer explaining that you couldn't complete the task and briefly explain why.`,
         });
       }
 
-      // Get next step from LLM using truncated context
-      const stream = await this.openai.chat.completions.create({
-        model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
-        messages: this.get_context_messages(),
-        stream: true,
-        max_tokens: 8192,
-        temperature: 0.5,
-        response_format: { type: 'json_object' },
-      });
-
-      let response_text = '';
-
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        response_text += content;
-        // Stream the thought process to console
-        process.stdout.write(content);
-      }
-
       try {
+        const response_text = await this.stream_completion(
+          this.get_context_messages(),
+          { type: 'json_object' }
+        );
+
         // Add pre-parsing validation
         if (!response_text.trim()) {
           throw new Error('Empty response from model');
@@ -194,7 +177,7 @@ export class ReActAgent {
           react_response_schema.parse(parsed_json);
 
         // Add the assistant's response to history before executing action
-        this.messages.push({
+        this.add_message({
           role: 'assistant',
           content: response_text,
         });
@@ -212,7 +195,7 @@ export class ReActAgent {
 
           log_to_console('info', '[Tool Observation]', observation);
 
-          this.messages.push({
+          this.add_message({
             role: 'user',
             content: `[Tool Observation] ${observation}`,
           });
@@ -221,7 +204,7 @@ export class ReActAgent {
         let error_observation: string;
 
         if (error instanceof SyntaxError) {
-          error_observation = `Error: Invalid JSON response from model. Response was: "${response_text}". Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }`;
+          error_observation = `Error: Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }`;
         } else if (error instanceof z.ZodError) {
           error_observation = `Error: Invalid response structure: ${error.errors
             .map((e) => e.message)
@@ -235,12 +218,7 @@ export class ReActAgent {
         log_to_console('error', '[Tool Observation]', error_observation);
 
         // Feed the error back to the model as an observation
-        this.messages.push({
-          role: 'assistant',
-          content: response_text,
-        });
-
-        this.messages.push({
+        this.add_message({
           role: 'user',
           content: `[Tool Observation] ${error_observation}`,
         });
@@ -251,7 +229,7 @@ export class ReActAgent {
 
       // When max iterations is reached, return the context of what happened
       if (iterations === this.max_iterations) {
-        const history = this.messages
+        const history = this.get_messages()
           .filter((m) => m.role === 'assistant')
           .map((m) => {
             try {
