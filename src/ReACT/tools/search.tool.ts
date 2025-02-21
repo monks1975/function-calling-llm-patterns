@@ -21,11 +21,12 @@ export type SearchWebToolParams = z.infer<typeof schema>;
  * A tool for performing web searches using the Google Search API.
  * Validates input using Zod schema and returns search results as JSON string.
  *
- * Input: Search query as a string
- * Output: Object containing search results as JSON stringified result or error
+ * @param query - The search query
+ *
+ * @returns Object containing search results as JSON stringified result or error
  *
  * Example:
- * Input: "latest news"
+ * Input: { query: "latest news" }
  * Output: { results: "[{title: 'News 1', description: '...', url: '...'}, ...]" }
  *
  * Handles:

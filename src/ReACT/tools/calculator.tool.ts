@@ -21,11 +21,12 @@ export type CalculatorToolParams = z.infer<typeof schema>;
  * A tool for evaluating mathematical expressions using the math.js library.
  * Validates input using Zod schema and returns the calculated result as a string.
  *
- * Input: Mathematical expression as a string
- * Output: Object containing result as string or error message
+ * @param expression - The mathematical expression to evaluate
+ *
+ * @returns Object containing calculated result as string or error
  *
  * Example:
- * Input: "2 + 2"
+ * Input: { expression: "2 + 2" }
  * Output: { result: "4" }
  *
  * Handles:
@@ -49,6 +50,13 @@ export const calculator_tool = async ({
       return handle_tool_error(
         'calculate-math-expression',
         'Validation error: ' + error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    // Handle math.js errors more descriptively
+    if (error instanceof Error) {
+      return handle_tool_error(
+        'calculate-math-expression',
+        `Failed to evaluate expression '${expression}': ${error.message}`
       );
     }
     return handle_tool_error('calculate-math-expression', undefined, error);
