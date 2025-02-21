@@ -10,7 +10,7 @@ import type {
 export interface AIChatStreamConfig {
   base_url?: string;
   api_key: string;
-  model?: string;
+  model: string;
   max_tokens?: number;
   temperature?: number;
 }
@@ -30,7 +30,7 @@ export class AIChatStream {
     });
 
     this.messages = [];
-    this.model = config.model || 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo';
+    this.model = config.model;
     this.max_tokens = config.max_tokens || 8192;
     this.temperature = config.temperature || 0.5;
     this.abort_controller = null;

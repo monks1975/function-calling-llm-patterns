@@ -5,10 +5,10 @@ import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { load_and_convert_yaml } from './helpers';
-import { react_response_schema } from './react.schema';
-import { react_instructions } from './react.instructions';
 import { AIChatStream, AIChatStreamConfig } from './ai.stream';
+import { load_and_convert_yaml } from './helpers';
+import { react_instructions } from './react.instructions';
+import { react_response_schema } from './react.schema';
 
 import {
   get_tool_examples,
