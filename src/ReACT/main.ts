@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npm run tsn -T
 
 import 'dotenv/config';
-import { cyan, green, inverse, red } from 'ansis';
+import { green, inverse, red } from 'ansis';
 import * as readline from 'readline';
 
 import { ReActAgent } from './react.agent';
