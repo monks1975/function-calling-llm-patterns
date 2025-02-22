@@ -1,9 +1,9 @@
 // ~/src/ReACT/react-agent.ts
 
+import { EventEmitter } from 'events';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
-import { EventEmitter } from 'events';
 
 import { AIChatStream, AIChatStreamConfig } from './ai.stream';
 import { load_and_convert_yaml } from './helpers';
@@ -38,11 +38,12 @@ export class ReActAgent extends AIChatStream {
   private tool_name_map: Map<string, string>;
   private max_iterations: number;
   private emitter: EventEmitter;
+  private original_question: string | null;
 
   constructor(
     config: AIChatStreamConfig,
     tools_config: ToolsConfig,
-    max_iterations: number = 15
+    max_iterations: number = 10
   ) {
     super(config);
 
@@ -50,6 +51,7 @@ export class ReActAgent extends AIChatStream {
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
     this.emitter = new EventEmitter();
+    this.original_question = null;
 
     const base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
@@ -170,15 +172,43 @@ export class ReActAgent extends AIChatStream {
     this.add_message({ role: 'user', content: question });
     let iterations = 0;
 
+    // Store original question when iterations start
+    this.original_question = question;
+
     while (iterations < this.max_iterations) {
       iterations++;
       this.emitter.emit('iteration', iterations);
 
       // When we've hit max iterations, add a prompt to wrap up
       if (iterations === this.max_iterations) {
+        // Get recent thoughts history
+        const recent_thoughts = this.get_messages()
+          .filter((m) => m.role === 'assistant')
+          .map((m) => {
+            try {
+              const parsed = JSON.parse(m.content as string);
+              return parsed.thought;
+            } catch {
+              return m.content;
+            }
+          })
+          .slice(-3)
+          .join('\n');
+
+        const max_iterations_message = [
+          `[Tool Observation] You have reached the maximum number of iterations (${this.max_iterations}).`,
+          '',
+          `Original question was: "${this.original_question}"`,
+          '',
+          'Your recent thoughts were:',
+          recent_thoughts,
+          '',
+          "You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.",
+        ].join('\n');
+
         this.add_message({
           role: 'user',
-          content: `You have reached the maximum number of iterations (${this.max_iterations}). Please provide a final_answer explaining that you couldn't complete the task and briefly explain why.`,
+          content: max_iterations_message,
         });
       }
 
@@ -224,7 +254,6 @@ export class ReActAgent extends AIChatStream {
         };
 
         let parsed_json = prepare_react_response(response_text);
-
         const parsed_response: ReActResponse =
           react_response_schema.parse(parsed_json);
 
@@ -233,6 +262,18 @@ export class ReActAgent extends AIChatStream {
           role: 'assistant',
           content: response_text,
         });
+
+        // On final iteration, ensure we get a final answer
+        if (iterations === this.max_iterations) {
+          if (!parsed_response.final_answer) {
+            // Model tried to continue instead of wrapping up - force a final answer
+            const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations. Here's what I know so far based on my attempts to answer "${this.original_question}": ${parsed_response.thought}`;
+
+            this.emitter.emit('final-answer', forced_answer);
+            return forced_answer;
+          }
+          // We got a final answer as requested, let it flow through normal return below
+        }
 
         if (parsed_response.final_answer) {
           this.emitter.emit('final-answer', parsed_response.final_answer);
@@ -285,26 +326,9 @@ export class ReActAgent extends AIChatStream {
         // Continue the loop to let the model try again
         continue;
       }
-
-      // When max iterations is reached, return the context of what happened
-      if (iterations === this.max_iterations) {
-        const history = this.get_messages()
-          .filter((m) => m.role === 'assistant')
-          .map((m) => {
-            try {
-              const parsed = JSON.parse(m.content as string);
-              return parsed.thought;
-            } catch {
-              return m.content;
-            }
-          })
-          .slice(-3)
-          .join('\n');
-
-        return `Error: Maximum iterations (${this.max_iterations}) reached. Recent thoughts:\n${history}\n\nConsider increasing max_iterations if the problem is complex or try rephrasing your question.`;
-      }
     }
 
+    // This should now only trigger if there's an unexpected loop exit
     return 'Error: Maximum iterations reached unexpectedly';
   }
 }

@@ -1,10 +1,8 @@
 // ~/src/ReACT/tools/search.tool.ts
 
 import { handle_tool_error, zod_schema_to_text } from './helpers';
-import { search, SafeSearchType } from 'duck-duck-scrape';
 import { z } from 'zod';
 
-import type { SearchResult, SearchOptions } from 'duck-duck-scrape';
 import type { ToolResponse } from './helpers';
 
 export const schema = z.object({
@@ -15,10 +13,23 @@ export const text_schema = zod_schema_to_text(schema);
 
 export type SearchWebToolParams = z.infer<typeof schema>;
 
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+}
+
+interface TavilyResponse {
+  query: string;
+  results: TavilySearchResult[];
+  response_time: number;
+}
+
 /**
  * Search Web Tool
  *
- * A tool for performing web searches using the Google Search API.
+ * A tool for performing web searches using the Tavily API.
  * Validates input using Zod schema and returns search results as JSON string.
  *
  * @param query - The search query
@@ -31,12 +42,10 @@ export type SearchWebToolParams = z.infer<typeof schema>;
  *
  * Handles:
  * - Web search queries
- * - Safe search filtering
  * - Result pagination
  * - Error cases with descriptive messages
  * - Returns top 5 most relevant results
  */
-
 export const search_web_tool = async ({
   query = '',
 }: SearchWebToolParams): Promise<ToolResponse> => {
@@ -44,15 +53,37 @@ export const search_web_tool = async ({
     // Validate input
     const validated_input = schema.parse({ query });
 
-    const search_options: SearchOptions = {
-      locale: 'en-GB',
-      region: 'GB',
-      safeSearch: SafeSearchType.STRICT,
-    };
+    const tavily_api_key = process.env.TAVILY_API_KEY;
 
-    const search_results = await search(validated_input.query, search_options);
+    if (!tavily_api_key) {
+      return handle_tool_error(
+        'search-web',
+        'Tavily API key not found in environment variables'
+      );
+    }
 
-    if (search_results.noResults) {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tavily_api_key}`,
+      },
+      body: JSON.stringify({
+        query: validated_input.query,
+        sort_by: 'relevance',
+      }),
+    });
+
+    if (!response.ok) {
+      return handle_tool_error(
+        'search-web',
+        `Tavily API error: ${response.statusText}`
+      );
+    }
+
+    const search_results: TavilyResponse = await response.json();
+
+    if (!search_results.results?.length) {
       return handle_tool_error(
         'search-web',
         `No search results found for query: '${validated_input.query}'`
@@ -60,10 +91,12 @@ export const search_web_tool = async ({
     }
 
     const picked_results = search_results.results
-      .map((result: SearchResult) => {
-        const { title, description, url } = result;
-        return { title, description, url };
-      })
+      .sort((a, b) => b.score - a.score)
+      .map((result: TavilySearchResult) => ({
+        title: result.title,
+        description: result.content,
+        url: result.url,
+      }))
       .slice(0, 5);
 
     return { result: JSON.stringify(picked_results) };
