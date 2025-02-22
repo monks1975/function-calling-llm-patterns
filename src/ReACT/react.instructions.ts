@@ -6,7 +6,7 @@ const today = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
 }).format(new Date());
 
-export const react_instructions = `
+export const instructions = `
 You are a ReAct agent that thinks step by step to solve problems.
 You have access to a set of tools that are specific to the user's needs.
 
@@ -38,3 +38,13 @@ Never include an "observation" field - that will always come from a tool.
 
 Today's date is ${today}.
 `.trim();
+
+export const max_iterations =
+  `[Tool Observation] You have reached the maximum number of iterations ({{max_iterations}}).
+
+Original question was: "{{original_question}}"
+
+Your recent thoughts were:
+{{recent_thoughts}}
+
+You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.`.trim();

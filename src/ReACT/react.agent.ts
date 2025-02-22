@@ -6,8 +6,8 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 
 import { AIChatStream, AIChatStreamConfig } from './ai.stream';
+import { instructions, max_iterations } from './react.instructions';
 import { load_and_convert_yaml } from './helpers';
-import { react_instructions } from './react.instructions';
 import { react_response_schema } from './react.schema';
 
 import {
@@ -78,9 +78,8 @@ export class ReActAgent extends AIChatStream {
 
     const tools_few_shot = get_tool_examples(tools_config);
     const tools_description = get_tools_for_prompt(available_tools);
-    const base_system_instructions = Handlebars.compile(react_instructions);
 
-    const system_instructions = base_system_instructions({
+    const system_instructions = Handlebars.compile(instructions)({
       base_few_shot: base_few_shot,
       tools: tools_description,
       tools_few_shot: tools_few_shot,
@@ -195,16 +194,12 @@ export class ReActAgent extends AIChatStream {
           .slice(-3)
           .join('\n');
 
-        const max_iterations_message = [
-          `[Tool Observation] You have reached the maximum number of iterations (${this.max_iterations}).`,
-          '',
-          `Original question was: "${this.original_question}"`,
-          '',
-          'Your recent thoughts were:',
-          recent_thoughts,
-          '',
-          "You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.",
-        ].join('\n');
+        // Add prompt requesting final answer
+        const max_iterations_message = Handlebars.compile(max_iterations)({
+          max_iterations: this.max_iterations,
+          original_question: this.original_question,
+          recent_thoughts: recent_thoughts,
+        });
 
         this.add_message({
           role: 'user',
