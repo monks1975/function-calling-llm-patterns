@@ -39,12 +39,13 @@ Never include an "observation" field - that will always come from a tool.
 Today's date is ${today}.
 `.trim();
 
-export const max_iterations =
-  `[Tool Observation] You have reached the maximum number of iterations ({{max_iterations}}).
+export const reached_max_iterations = `
+[Tool Observation] You have reached the maximum number of iterations ({{max_iterations}}).
 
 Original question was: "{{original_question}}"
 
 Your recent thoughts were:
 {{recent_thoughts}}
 
-You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.`.trim();
+You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.
+`.trim();

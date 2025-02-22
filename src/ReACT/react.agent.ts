@@ -6,7 +6,7 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 
 import { AIChatStream, AIChatStreamConfig } from './ai.stream';
-import { instructions, max_iterations } from './react.instructions';
+import { instructions, reached_max_iterations } from './react.instructions';
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
 
@@ -43,7 +43,7 @@ export class ReActAgent extends AIChatStream {
   constructor(
     config: AIChatStreamConfig,
     tools_config: ToolsConfig,
-    max_iterations: number = 10
+    max_iterations: number = 5
   ) {
     super(config);
 
@@ -174,6 +174,15 @@ export class ReActAgent extends AIChatStream {
     // Store original question when iterations start
     this.original_question = question;
 
+    // For each iteration:
+    // 1. Get AI response via stream
+    // 2. Parse response as ReActResponse
+    //    (must have 'thought' + optional 'action'/'final_answer')
+    // 3. Add AI response to message history
+    // 4. If final_answer exists, return it
+    // 5. If action exists, execute it and add observation to history
+    // 6. If error occurs, add error observation and continue loop
+
     while (iterations < this.max_iterations) {
       iterations++;
       this.emitter.emit('iteration', iterations);
@@ -195,10 +204,17 @@ export class ReActAgent extends AIChatStream {
           .join('\n');
 
         // Add prompt requesting final answer
-        const max_iterations_message = Handlebars.compile(max_iterations)({
+        const max_iterations_message = Handlebars.compile(
+          reached_max_iterations
+        )({
           max_iterations: this.max_iterations,
           original_question: this.original_question,
           recent_thoughts: recent_thoughts,
+        });
+
+        this.emitter.emit('tool-observation', {
+          data: max_iterations_message,
+          is_error: true,
         });
 
         this.add_message({
@@ -262,7 +278,7 @@ export class ReActAgent extends AIChatStream {
         if (iterations === this.max_iterations) {
           if (!parsed_response.final_answer) {
             // Model tried to continue instead of wrapping up - force a final answer
-            const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations. Here's what I know so far based on my attempts to answer "${this.original_question}": ${parsed_response.thought}`;
+            const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
 
             this.emitter.emit('final-answer', forced_answer);
             return forced_answer;
