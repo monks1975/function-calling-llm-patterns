@@ -6,6 +6,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionCreateParamsBase,
 } from 'openai/resources/chat/completions';
+import { EventEmitter } from 'events';
 
 export interface AIChatStreamConfig {
   base_url?: string;
@@ -15,6 +16,13 @@ export interface AIChatStreamConfig {
   temperature?: number;
   timeout_ms?: number;
   max_retries?: number;
+}
+
+export interface RetryNotification {
+  type: 'retry';
+  attempt: number;
+  backoff_ms: number;
+  error: string;
 }
 
 class StreamError extends Error {
@@ -29,12 +37,15 @@ export class AIChatStream {
   private readonly config: Required<AIChatStreamConfig>;
   private abort_controller: AbortController | null = null;
   private messages: ChatCompletionMessageParam[] = [];
+  private emitter: EventEmitter;
 
   constructor(config: AIChatStreamConfig) {
     this.openai = new OpenAI({
       baseURL: config.base_url,
       apiKey: config.api_key,
     });
+
+    this.emitter = new EventEmitter();
 
     this.config = {
       model: config.model,
@@ -171,19 +182,33 @@ export class AIChatStream {
       10000
     );
 
-    if (readable) {
-      readable.push(
-        JSON.stringify({
-          type: 'retry',
-          attempt,
-          backoff_ms,
-          error: error.message,
-        }) + '\n'
-      );
-    }
+    const notification: RetryNotification = {
+      type: 'retry',
+      attempt,
+      backoff_ms,
+      error: error.message,
+    };
+
+    this.emitter.emit('retry', notification);
 
     await new Promise((resolve) => setTimeout(resolve, backoff_ms));
     return true;
+  }
+
+  public on(
+    event: 'retry',
+    listener: (notification: RetryNotification) => void
+  ): this {
+    this.emitter.on(event, listener);
+    return this;
+  }
+
+  public off(
+    event: 'retry',
+    listener: (notification: RetryNotification) => void
+  ): this {
+    this.emitter.off(event, listener);
+    return this;
   }
 
   public abort_stream(): void {

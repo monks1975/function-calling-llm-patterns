@@ -5,7 +5,7 @@ import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { AIChatStream, AIChatStreamConfig } from './ai.stream';
+import { AIChatStream } from './ai.stream';
 import { instructions, reached_max_iterations } from './react.instructions';
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
@@ -16,6 +16,7 @@ import {
   init_tools_from_config,
 } from './tools/setup';
 
+import type { AIChatStreamConfig, RetryNotification } from './ai.stream';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
@@ -31,14 +32,16 @@ export interface ReActEvents {
   'final-answer': (answer: string) => void;
   iteration: (count: number) => void;
   error: (error: Error) => void;
+  retry: (notification: RetryNotification) => void;
 }
 
 export class ReActAgent extends AIChatStream {
   private tools: Map<string, ToolDefinition>;
   private tool_name_map: Map<string, string>;
   private max_iterations: number;
-  private emitter: EventEmitter;
+  private react_emitter: EventEmitter;
   private original_question: string | null;
+  private retry_listener: ((notification: RetryNotification) => void) | null;
 
   constructor(
     config: AIChatStreamConfig,
@@ -50,8 +53,9 @@ export class ReActAgent extends AIChatStream {
     this.tools = new Map();
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
-    this.emitter = new EventEmitter();
+    this.react_emitter = new EventEmitter();
     this.original_question = null;
+    this.retry_listener = null;
 
     const base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
@@ -96,7 +100,7 @@ export class ReActAgent extends AIChatStream {
     event: K,
     listener: ReActEvents[K]
   ): this {
-    this.emitter.on(event, listener);
+    this.react_emitter.on(event, listener);
     return this;
   }
 
@@ -104,7 +108,7 @@ export class ReActAgent extends AIChatStream {
     event: K,
     listener: ReActEvents[K]
   ): this {
-    this.emitter.off(event, listener);
+    this.react_emitter.off(event, listener);
     return this;
   }
 
@@ -163,142 +167,157 @@ export class ReActAgent extends AIChatStream {
     return [systemMessage, ...recentMessages];
   }
 
+  private async handle_max_iterations_reached() {
+    const recent_thoughts = this.get_messages()
+      .filter((m) => m.role === 'assistant')
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content as string);
+          return parsed.thought;
+        } catch {
+          return m.content;
+        }
+      })
+      .slice(-3)
+      .join('\n');
+
+    const max_iterations_message = Handlebars.compile(reached_max_iterations)({
+      max_iterations: this.max_iterations,
+      original_question: this.original_question,
+      recent_thoughts: recent_thoughts,
+    });
+
+    this.react_emitter.emit('tool-observation', {
+      data: max_iterations_message,
+      is_error: true,
+    });
+
+    this.add_message({
+      role: 'user',
+      content: max_iterations_message,
+    });
+  }
+
+  private async get_model_response(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      let response = '';
+      const stream = this.create_readable_stream(this.get_context_messages(), {
+        type: 'json_object',
+      });
+
+      // Listen for retry notifications
+      this.retry_listener = (notification: RetryNotification) => {
+        this.react_emitter.emit('chunk', JSON.stringify(notification) + '\n');
+      };
+      super.on('retry', this.retry_listener);
+
+      stream.on('data', (chunk) => {
+        const chunk_str = chunk.toString();
+        response += chunk_str;
+        this.react_emitter.emit('chunk', chunk_str);
+      });
+
+      stream.on('end', () => {
+        if (this.retry_listener) {
+          super.off('retry', this.retry_listener);
+          this.retry_listener = null;
+        }
+        resolve(response);
+      });
+
+      stream.on('error', (error) => {
+        if (this.retry_listener) {
+          super.off('retry', this.retry_listener);
+          this.retry_listener = null;
+        }
+        reject(error);
+      });
+    });
+  }
+
+  private parse_react_response(response_text: string): ReActResponse {
+    if (!response_text.trim()) {
+      throw new Error('Empty response from model');
+    }
+
+    const prepare_react_response = (response: unknown): unknown => {
+      if (typeof response === 'string') {
+        try {
+          return JSON.parse(response);
+        } catch (e) {
+          throw new SyntaxError(`Invalid JSON: ${response}`);
+        }
+      }
+      return response;
+    };
+
+    const parsed_json = prepare_react_response(response_text);
+    return react_response_schema.parse(parsed_json);
+  }
+
+  private handle_error(error: unknown): string {
+    if (error instanceof SyntaxError) {
+      return 'Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }';
+    }
+    if (error instanceof z.ZodError) {
+      return (
+        'Invalid response structure: ' +
+        error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    return error instanceof Error ? error.message : String(error);
+  }
+
   async answer(question: string) {
     if (!question || typeof question !== 'string') {
       throw new Error('Question must be a non-empty string');
     }
 
-    this.add_message({ role: 'user', content: question });
-    let iterations = 0;
-
-    // Store original question when iterations start
     this.original_question = question;
 
-    // For each iteration:
-    // 1. Get AI response via stream
-    // 2. Parse response as ReActResponse
-    //    (must have 'thought' + optional 'action'/'final_answer')
-    // 3. Add AI response to message history
-    // 4. If final_answer exists, return it
-    // 5. If action exists, execute it and add observation to history
-    // 6. If error occurs, add error observation and continue loop
+    this.add_message({ role: 'user', content: question });
+
+    let iterations = 0;
 
     while (iterations < this.max_iterations) {
       iterations++;
-      this.emitter.emit('iteration', iterations);
 
-      // When we've hit max iterations, add a prompt to wrap up
+      this.react_emitter.emit('iteration', iterations);
+
       if (iterations === this.max_iterations) {
-        // Get recent thoughts history
-        const recent_thoughts = this.get_messages()
-          .filter((m) => m.role === 'assistant')
-          .map((m) => {
-            try {
-              const parsed = JSON.parse(m.content as string);
-              return parsed.thought;
-            } catch {
-              return m.content;
-            }
-          })
-          .slice(-3)
-          .join('\n');
-
-        // Add prompt requesting final answer
-        const max_iterations_message = Handlebars.compile(
-          reached_max_iterations
-        )({
-          max_iterations: this.max_iterations,
-          original_question: this.original_question,
-          recent_thoughts: recent_thoughts,
-        });
-
-        this.emitter.emit('tool-observation', {
-          data: max_iterations_message,
-          is_error: true,
-        });
-
-        this.add_message({
-          role: 'user',
-          content: max_iterations_message,
-        });
+        await this.handle_max_iterations_reached();
       }
 
       try {
-        const response_text = await new Promise<string>((resolve, reject) => {
-          let response = '';
+        const response_text = await this.get_model_response();
+        const parsed_response = this.parse_react_response(response_text);
 
-          const stream = this.create_readable_stream(
-            this.get_context_messages(),
-            { type: 'json_object' }
-          );
-
-          stream.on('data', (chunk) => {
-            const chunk_str = chunk.toString();
-            response += chunk_str;
-            this.emitter.emit('chunk', chunk_str);
-          });
-
-          stream.on('end', () => {
-            resolve(response);
-          });
-
-          stream.on('error', (error) => {
-            reject(error);
-          });
-        });
-
-        // Add pre-parsing validation
-        if (!response_text.trim()) {
-          throw new Error('Empty response from model');
-        }
-
-        // First ensure we have the canonical object form before validation
-        const prepare_react_response = (response: unknown): unknown => {
-          if (typeof response === 'string') {
-            try {
-              return JSON.parse(response);
-            } catch (e) {
-              throw new SyntaxError(`Invalid JSON: ${response}`);
-            }
-          }
-          return response;
-        };
-
-        let parsed_json = prepare_react_response(response_text);
-        const parsed_response: ReActResponse =
-          react_response_schema.parse(parsed_json);
-
-        // Add the assistant's response to history before executing action
         this.add_message({
           role: 'assistant',
           content: response_text,
         });
 
-        // On final iteration, ensure we get a final answer
-        if (iterations === this.max_iterations) {
-          if (!parsed_response.final_answer) {
-            // Model tried to continue instead of wrapping up - force a final answer
-            const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
-
-            this.emitter.emit('final-answer', forced_answer);
-            return forced_answer;
-          }
-          // We got a final answer as requested, let it flow through normal return below
+        if (
+          iterations === this.max_iterations &&
+          !parsed_response.final_answer
+        ) {
+          const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
+          this.react_emitter.emit('final-answer', forced_answer);
+          return forced_answer;
         }
 
         if (parsed_response.final_answer) {
-          this.emitter.emit('final-answer', parsed_response.final_answer);
+          this.react_emitter.emit('final-answer', parsed_response.final_answer);
           return parsed_response.final_answer;
         }
 
-        // Execute action if specified
         if (parsed_response.action && parsed_response.input !== undefined) {
           const observation = await this.execute_action(
             parsed_response.action,
             parsed_response.input
           );
 
-          this.emitter.emit('tool-observation', {
+          this.react_emitter.emit('tool-observation', {
             data: observation,
             is_error: false,
           });
@@ -309,22 +328,9 @@ export class ReActAgent extends AIChatStream {
           });
         }
       } catch (error) {
-        let error_observation: string;
+        const error_observation = this.handle_error(error);
 
-        if (error instanceof SyntaxError) {
-          error_observation =
-            'Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }';
-        } else if (error instanceof z.ZodError) {
-          error_observation =
-            'Invalid response structure: ' +
-            error.errors.map((e) => e.message).join(', ');
-        } else {
-          error_observation =
-            error instanceof Error ? error.message : String(error);
-        }
-
-        // Emit a single error observation event that includes both the error and observation
-        this.emitter.emit('tool-observation', {
+        this.react_emitter.emit('tool-observation', {
           data: `Error: ${error_observation}`,
           is_error: true,
         });
@@ -333,13 +339,9 @@ export class ReActAgent extends AIChatStream {
           role: 'user',
           content: `[Tool Observation] Error: ${error_observation}`,
         });
-
-        // Continue the loop to let the model try again
-        continue;
       }
     }
 
-    // This should now only trigger if there's an unexpected loop exit
     return 'Error: Maximum iterations reached unexpectedly';
   }
 }

@@ -25,7 +25,7 @@ const ai_config: AIChatStreamConfig = {
   api_key: api_key,
   model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
   max_tokens: 6144,
-  temperature: 0.5,
+  temperature: 0.2,
 };
 
 // Configure which tools to enable and their configurations
