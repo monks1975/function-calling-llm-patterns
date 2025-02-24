@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "react": "ts-node src/REACT/main.ts",
+    "react": "ts-node src/ReACT/main.ts",
     "functions": "ts-node src/FUNCTIONS/index.ts",
     "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -15,6 +15,9 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.4",
+    "mkdirp": "^3.0.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.7.3"
@@ -26,7 +29,6 @@
     "js-yaml": "^4.1.0",
     "mathjs": "^14.2.1",
     "openai": "^4.85.3",
-    "pino": "^9.6.0",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.2"
   }
