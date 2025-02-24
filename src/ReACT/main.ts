@@ -63,16 +63,16 @@ async function main() {
 
   // Listen for completion events to log ai request data
   agent.on('completion', (completion) => {
-    debug(
-      {
-        completion: completion,
-      },
-      'Request completed'
-    );
+    debug({ completion }, 'Request completed');
   });
 
-  // Listen for retries if you want to log those too
-  agent.on('retry', (notification) => {});
+  agent.on('retry', (notification) => {
+    debug({ notification }, 'Retry');
+  });
+
+  agent.on('tool-observation', (observation) => {
+    debug({ observation }, 'Tool observation');
+  });
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -98,7 +98,7 @@ async function main() {
         });
 
         readable.on('error', (error) => {
-          console.error(red`\n\n${inverse`Error`} ${error.message}\n`);
+          debug({ error }, 'Error in readable stream');
         });
 
         await new Promise((resolve) => readable.on('end', resolve));
