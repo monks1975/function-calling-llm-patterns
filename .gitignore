@@ -12,6 +12,7 @@ build/
 
 # Logs
 *.log
+tmp/
 npm-debug.log* 
 
 # Mac specific

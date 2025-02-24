@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "react": "ts-node src/ReACT/main.ts",
+    "react": "ts-node src/ReAct/main.ts",
     "functions": "ts-node src/FUNCTIONS/index.ts",
     "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
