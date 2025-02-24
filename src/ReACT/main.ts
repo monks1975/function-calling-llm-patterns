@@ -1,4 +1,5 @@
-#!/usr/bin/env -S npm run tsn -T
+// ~/src/ReACT/main.ts
+// ReACT Agent CLI
 
 import 'dotenv/config';
 import { red, inverse } from 'ansis';
