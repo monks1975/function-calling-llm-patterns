@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import type {
   ChatCompletionMessageParam,
   ChatCompletionCreateParamsBase,
+  ChatCompletion,
 } from 'openai/resources/chat/completions';
 
 export interface AiConfig {
@@ -130,6 +131,9 @@ export class AiGenerate {
       }
     );
 
+    // Emit the completion response for logging
+    this.emitter.emit('completion', completion);
+
     return completion.choices[0]?.message?.content ?? '';
   }
 
@@ -160,16 +164,16 @@ export class AiGenerate {
   }
 
   public on(
-    event: 'retry',
-    listener: (notification: AiRetryNotification) => void
+    event: 'retry' | 'completion',
+    listener: (notification: AiRetryNotification | ChatCompletion) => void
   ): this {
     this.emitter.on(event, listener);
     return this;
   }
 
   public off(
-    event: 'retry',
-    listener: (notification: AiRetryNotification) => void
+    event: 'retry' | 'completion',
+    listener: (notification: AiRetryNotification | ChatCompletion) => void
   ): this {
     this.emitter.off(event, listener);
     return this;

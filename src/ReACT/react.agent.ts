@@ -18,7 +18,12 @@ import {
 } from './tools/setup';
 
 import type { AiConfig, AiRetryNotification } from './ai';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletion,
+} from 'openai/resources/chat/completions';
+
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
 
@@ -34,15 +39,32 @@ export interface ReActEvents {
   iteration: (count: number) => void;
   error: (error: Error) => void;
   retry: (notification: AiRetryNotification) => void;
+  completion: (completion: ChatCompletion) => void;
 }
 
 export class ReActAgent extends AiGenerate {
+  // Map of tool names to their implementations. Tools are functions that the
+  // agent can use to interact with external systems or perform computations
   private tools: Map<string, ToolDefinition>;
+
+  // Maps alternative tool names to their primary names (e.g. "add" ->
+  // "calculator")
+  // Allows tools to be called by multiple names
   private tool_name_map: Map<string, string>;
+
+  // Maximum number of thought/action cycles the agent can perform before being
+  // forced to return an answer
   private max_iterations: number;
+
+  // Event emitter for broadcasting agent events like tool usage, final answers,
+  // and errors
   private react_emitter: EventEmitter;
+
+  // Stores the original user question for reference, particularly useful when
+  // max iterations is reached
   private original_question: string | null;
   private retry_listener: ((notification: AiRetryNotification) => void) | null;
+  private completion_listener: ((completion: ChatCompletion) => void) | null;
 
   constructor(
     config: AiConfig,
@@ -57,11 +79,16 @@ export class ReActAgent extends AiGenerate {
     this.react_emitter = new EventEmitter();
     this.original_question = null;
 
-    // Set up retry event forwarding
+    // Set up event forwarding
     this.retry_listener = (notification: AiRetryNotification) => {
       this.react_emitter.emit('retry', notification);
     };
+    this.completion_listener = (completion: ChatCompletion) => {
+      this.react_emitter.emit('completion', completion);
+    };
+
     this.on('retry', this.retry_listener);
+    this.on('completion', this.completion_listener);
 
     // Load base few shot examples
     const base_few_shot = load_and_convert_yaml(
@@ -103,30 +130,55 @@ export class ReActAgent extends AiGenerate {
     });
   }
 
-  public on<K extends keyof ReActEvents>(
+  // Override of EventEmitter's on() method to properly handle event routing
+  // Parent events (retry/completion) go to parent class, others to
+  // react_emitter
+  public override on<K extends keyof ReActEvents>(
     event: K,
     listener: ReActEvents[K]
   ): this {
-    this.react_emitter.on(event, listener);
+    if (event === 'retry' || event === 'completion') {
+      // These events are handled by parent class only
+      super.on(event, listener as any);
+    } else {
+      // All other events go to react_emitter only
+      this.react_emitter.on(event, listener);
+    }
     return this;
   }
 
-  public off<K extends keyof ReActEvents>(
+  // Override of EventEmitter's off() method to properly handle event removal
+  // Ensures events are removed from the correct emitter
+  public override off<K extends keyof ReActEvents>(
     event: K,
     listener: ReActEvents[K]
   ): this {
-    this.react_emitter.off(event, listener);
+    if (event === 'retry' || event === 'completion') {
+      // Remove listeners from parent class only
+      super.off(event, listener as any);
+    } else {
+      // Remove listeners from react_emitter only
+      this.react_emitter.off(event, listener);
+    }
     return this;
   }
 
+  // Removes all event listeners to prevent memory leaks
+  // Should be called when the agent is no longer needed
   public cleanup(): void {
     if (this.retry_listener) {
       this.off('retry', this.retry_listener);
       this.retry_listener = null;
     }
+    if (this.completion_listener) {
+      this.off('completion', this.completion_listener);
+      this.completion_listener = null;
+    }
     this.react_emitter.removeAllListeners();
   }
 
+  // Executes a tool with the given input and returns the result
+  // Handles input parsing, tool lookup, and error handling
   private async execute_action(action: string, input: any): Promise<string> {
     if (!action || typeof action !== 'string') {
       throw new Error('Invalid action: action must be a non-empty string');
@@ -176,12 +228,18 @@ export class ReActAgent extends AiGenerate {
     }
   }
 
+  // Returns the relevant conversation context for the AI model
+  // Includes the system prompt and the most recent conversation messages
   private get_context_messages(): ChatCompletionMessageParam[] {
     const systemMessage = this.get_messages()[0]; // system
     const recentMessages = this.get_messages().slice(1).slice(-5); // last 5 messages
     return [systemMessage, ...recentMessages];
   }
 
+  // Handles the case when the agent reaches maximum iterations without finding
+  // an answer.
+  // Generates a helpful error message including recent thoughts and the
+  // original question
   private async handle_max_iterations_reached() {
     const recent_thoughts = this.get_messages()
       .filter((m) => m.role === 'assistant')
@@ -213,6 +271,8 @@ export class ReActAgent extends AiGenerate {
     });
   }
 
+  // Gets the next response from the AI model and handles any errors
+  // Emits the response chunks for streaming
   private async get_model_response(): Promise<string> {
     try {
       const response = await this.get_completion(this.get_context_messages(), {
@@ -229,6 +289,9 @@ export class ReActAgent extends AiGenerate {
     }
   }
 
+  // Parses and validates the AI model's response to ensure it matches the
+  // expected ReAct format
+  // Throws detailed errors if the response is invalid
   private parse_react_response(response_text: string): ReActResponse {
     if (!response_text.trim()) {
       throw new Error('Empty response from model');
@@ -249,6 +312,8 @@ export class ReActAgent extends AiGenerate {
     return react_response_schema.parse(parsed_json);
   }
 
+  // Converts various error types into human-readable error messages
+  // Handles JSON parsing errors, schema validation errors, and general errors
   private handle_error(error: unknown): string {
     if (error instanceof SyntaxError) {
       return 'Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }';
@@ -262,6 +327,9 @@ export class ReActAgent extends AiGenerate {
     return error instanceof Error ? error.message : String(error);
   }
 
+  // Main method to process a user's question using the ReAct approach
+  // Manages the thought/action cycle, tool execution, and response generation
+  // Returns the final answer or an error message if max iterations are reached
   async answer(question: string) {
     if (!question || typeof question !== 'string') {
       throw new Error('Question must be a non-empty string');

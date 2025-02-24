@@ -4,8 +4,10 @@ import 'dotenv/config';
 import { red, inverse } from 'ansis';
 import * as readline from 'readline';
 
+import { debug } from './logger';
 import { ReActAgent } from './react.agent';
-import { ReActStream, ReActStreamConfig } from './react.stream';
+import { ReActStream, type ReActStreamConfig } from './react.stream';
+
 import type { AiConfig } from './ai';
 
 const api_key = process.env.CEREBRAS_API_KEY;
@@ -58,6 +60,19 @@ async function main() {
   const agent = new ReActAgent(ai_config, tools_config);
   const stream = new ReActStream(agent, stream_config);
 
+  // Listen for completion events to log ai request data
+  agent.on('completion', (completion) => {
+    debug(
+      {
+        completion: completion,
+      },
+      'Request completed'
+    );
+  });
+
+  // Listen for retries if you want to log those too
+  agent.on('retry', (notification) => {});
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -69,6 +84,7 @@ async function main() {
   const askQuestion = () => {
     rl.question('Question: ', async (question) => {
       if (question.toLowerCase() === 'exit') {
+        agent.cleanup(); // Make sure to cleanup event listeners
         rl.close();
         return;
       }
