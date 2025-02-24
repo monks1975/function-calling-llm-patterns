@@ -1,11 +1,12 @@
 // ~/src/ReACT/react-agent.ts
+// ReAct agent implementation
 
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { AIChatStream } from './ai.stream';
+import { AiGenerate } from './ai';
 import { instructions, reached_max_iterations } from './react.instructions';
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
@@ -16,7 +17,7 @@ import {
   init_tools_from_config,
 } from './tools/setup';
 
-import type { AIChatStreamConfig, RetryNotification } from './ai.stream';
+import type { AiConfig, AiRetryNotification } from './ai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
@@ -32,19 +33,19 @@ export interface ReActEvents {
   'final-answer': (answer: string) => void;
   iteration: (count: number) => void;
   error: (error: Error) => void;
-  retry: (notification: RetryNotification) => void;
+  retry: (notification: AiRetryNotification) => void;
 }
 
-export class ReActAgent extends AIChatStream {
+export class ReActAgent extends AiGenerate {
   private tools: Map<string, ToolDefinition>;
   private tool_name_map: Map<string, string>;
   private max_iterations: number;
   private react_emitter: EventEmitter;
   private original_question: string | null;
-  private retry_listener: ((notification: RetryNotification) => void) | null;
+  private retry_listener: ((notification: AiRetryNotification) => void) | null;
 
   constructor(
-    config: AIChatStreamConfig,
+    config: AiConfig,
     tools_config: ToolsConfig,
     max_iterations: number = 5
   ) {
@@ -55,8 +56,14 @@ export class ReActAgent extends AIChatStream {
     this.max_iterations = max_iterations;
     this.react_emitter = new EventEmitter();
     this.original_question = null;
-    this.retry_listener = null;
 
+    // Set up retry event forwarding
+    this.retry_listener = (notification: AiRetryNotification) => {
+      this.react_emitter.emit('retry', notification);
+    };
+    this.on('retry', this.retry_listener);
+
+    // Load base few shot examples
     const base_few_shot = load_and_convert_yaml(
       path.join(__dirname, 'react.examples.yaml')
     );
@@ -110,6 +117,14 @@ export class ReActAgent extends AIChatStream {
   ): this {
     this.react_emitter.off(event, listener);
     return this;
+  }
+
+  public cleanup(): void {
+    if (this.retry_listener) {
+      this.off('retry', this.retry_listener);
+      this.retry_listener = null;
+    }
+    this.react_emitter.removeAllListeners();
   }
 
   private async execute_action(action: string, input: any): Promise<string> {
@@ -199,40 +214,19 @@ export class ReActAgent extends AIChatStream {
   }
 
   private async get_model_response(): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      let response = '';
-      const stream = this.create_readable_stream(this.get_context_messages(), {
+    try {
+      const response = await this.get_completion(this.get_context_messages(), {
         type: 'json_object',
       });
-
-      // Listen for retry notifications
-      this.retry_listener = (notification: RetryNotification) => {
-        this.react_emitter.emit('chunk', JSON.stringify(notification) + '\n');
-      };
-      super.on('retry', this.retry_listener);
-
-      stream.on('data', (chunk) => {
-        const chunk_str = chunk.toString();
-        response += chunk_str;
-        this.react_emitter.emit('chunk', chunk_str);
-      });
-
-      stream.on('end', () => {
-        if (this.retry_listener) {
-          super.off('retry', this.retry_listener);
-          this.retry_listener = null;
-        }
-        resolve(response);
-      });
-
-      stream.on('error', (error) => {
-        if (this.retry_listener) {
-          super.off('retry', this.retry_listener);
-          this.retry_listener = null;
-        }
-        reject(error);
-      });
-    });
+      this.react_emitter.emit('chunk', response);
+      return response;
+    } catch (error) {
+      this.react_emitter.emit(
+        'error',
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
+    }
   }
 
   private parse_react_response(response_text: string): ReActResponse {
@@ -273,75 +267,82 @@ export class ReActAgent extends AIChatStream {
       throw new Error('Question must be a non-empty string');
     }
 
-    this.original_question = question;
+    try {
+      this.original_question = question;
 
-    this.add_message({ role: 'user', content: question });
+      this.add_message({ role: 'user', content: question });
 
-    let iterations = 0;
+      let iterations = 0;
 
-    while (iterations < this.max_iterations) {
-      iterations++;
+      while (iterations < this.max_iterations) {
+        iterations++;
 
-      this.react_emitter.emit('iteration', iterations);
+        this.react_emitter.emit('iteration', iterations);
 
-      if (iterations === this.max_iterations) {
-        await this.handle_max_iterations_reached();
-      }
-
-      try {
-        const response_text = await this.get_model_response();
-        const parsed_response = this.parse_react_response(response_text);
-
-        this.add_message({
-          role: 'assistant',
-          content: response_text,
-        });
-
-        if (
-          iterations === this.max_iterations &&
-          !parsed_response.final_answer
-        ) {
-          const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
-          this.react_emitter.emit('final-answer', forced_answer);
-          return forced_answer;
+        if (iterations === this.max_iterations) {
+          await this.handle_max_iterations_reached();
         }
 
-        if (parsed_response.final_answer) {
-          this.react_emitter.emit('final-answer', parsed_response.final_answer);
-          return parsed_response.final_answer;
-        }
+        try {
+          const response_text = await this.get_model_response();
+          const parsed_response = this.parse_react_response(response_text);
 
-        if (parsed_response.action && parsed_response.input !== undefined) {
-          const observation = await this.execute_action(
-            parsed_response.action,
-            parsed_response.input
-          );
+          this.add_message({
+            role: 'assistant',
+            content: response_text,
+          });
+
+          if (
+            iterations === this.max_iterations &&
+            !parsed_response.final_answer
+          ) {
+            const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
+            this.react_emitter.emit('final-answer', forced_answer);
+            return forced_answer;
+          }
+
+          if (parsed_response.final_answer) {
+            this.react_emitter.emit(
+              'final-answer',
+              parsed_response.final_answer
+            );
+            return parsed_response.final_answer;
+          }
+
+          if (parsed_response.action && parsed_response.input !== undefined) {
+            const observation = await this.execute_action(
+              parsed_response.action,
+              parsed_response.input
+            );
+
+            this.react_emitter.emit('tool-observation', {
+              data: observation,
+              is_error: false,
+            });
+
+            this.add_message({
+              role: 'user',
+              content: `[Tool Observation] ${observation}`,
+            });
+          }
+        } catch (error) {
+          const error_observation = this.handle_error(error);
 
           this.react_emitter.emit('tool-observation', {
-            data: observation,
-            is_error: false,
+            data: `Error: ${error_observation}`,
+            is_error: true,
           });
 
           this.add_message({
             role: 'user',
-            content: `[Tool Observation] ${observation}`,
+            content: `[Tool Observation] Error: ${error_observation}`,
           });
         }
-      } catch (error) {
-        const error_observation = this.handle_error(error);
-
-        this.react_emitter.emit('tool-observation', {
-          data: `Error: ${error_observation}`,
-          is_error: true,
-        });
-
-        this.add_message({
-          role: 'user',
-          content: `[Tool Observation] Error: ${error_observation}`,
-        });
       }
-    }
 
-    return 'Error: Maximum iterations reached unexpectedly';
+      return 'Error: Maximum iterations reached unexpectedly';
+    } catch (error) {
+      throw error;
+    }
   }
 }

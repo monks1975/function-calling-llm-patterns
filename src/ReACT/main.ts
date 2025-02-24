@@ -1,31 +1,38 @@
 #!/usr/bin/env -S npm run tsn -T
 
 import 'dotenv/config';
-import { green, inverse, red } from 'ansis';
+import { red, inverse } from 'ansis';
 import * as readline from 'readline';
 
 import { ReActAgent } from './react.agent';
+import { ReActStream, ReActStreamConfig } from './react.stream';
+import type { AiConfig } from './ai';
 
-import type { AIChatStreamConfig } from './ai.stream';
-
-const api_key = process.env.TOGETHER_API_KEY;
+const api_key = process.env.CEREBRAS_API_KEY;
 
 if (!api_key) {
-  console.error('Error: TOGETHER_API_KEY environment variable is not set');
+  console.error('Error: CEREBRAS_API_KEY environment variable is not set');
   console.error('Please create a .env file based on .env.example');
   console.error(
-    'Make sure to add your actual Together API key to the .env file'
+    'Make sure to add your actual Cerebras API key to the .env file'
   );
   process.exit(1);
 }
 
 // Configure AI chat stream
-const ai_config: AIChatStreamConfig = {
-  base_url: 'https://api.together.xyz/v1',
+// works with together and cerebras currently, not groq (TODO: add groq support)
+const ai_config: AiConfig = {
+  base_url: 'https://api.cerebras.ai/v1',
   api_key: api_key,
-  model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
-  max_tokens: 6144,
+  model: 'llama3.1-8b',
+  max_tokens: 8192,
   temperature: 0.2,
+};
+
+// Configure streaming output options for ReACT
+const stream_config: ReActStreamConfig = {
+  stream_thoughts: true, // Set to false to hide thoughts
+  stream_actions: true, // Set to false to hide action/input
 };
 
 // Configure which tools to enable and their configurations
@@ -49,30 +56,7 @@ const tools_config = {
 
 async function main() {
   const agent = new ReActAgent(ai_config, tools_config);
-
-  // Set up event handlers
-  agent
-    .on('chunk', (chunk) => {
-      // Custom chunk handling could go here
-      // For now we'll keep the default stdout behavior
-      process.stdout.write(chunk);
-    })
-    .on('tool-observation', (observation) => {
-      log_to_console(
-        observation.is_error ? 'error' : 'info',
-        'Tool Observation',
-        observation.data
-      );
-    })
-    .on('final-answer', (answer) => {
-      log_to_console('info', 'Final Answer', answer);
-    })
-    .on('iteration', (count) => {
-      log_to_console('info', 'Iteration', count.toString());
-    })
-    .on('error', (error) => {
-      log_to_console('error', 'Error', error.message);
-    });
+  const stream = new ReActStream(agent, stream_config);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -90,13 +74,22 @@ async function main() {
       }
 
       try {
-        await agent.answer(question);
+        const readable = stream.create_readable_stream(question);
+
+        readable.on('data', (chunk) => {
+          process.stdout.write(chunk.toString());
+        });
+
+        readable.on('error', (error) => {
+          console.error(red`\n\n${inverse`Error`} ${error.message}\n`);
+        });
+
+        await new Promise((resolve) => readable.on('end', resolve));
       } catch (error) {
         console.error('Error:', error);
       }
 
       console.log('\n--------------------------------');
-
       askQuestion(); // Ask for the next question
     });
   };
@@ -105,11 +98,3 @@ async function main() {
 }
 
 main().catch(console.error);
-
-function log_to_console(type: 'info' | 'error', tag: string, message: string) {
-  if (type === 'info') {
-    console.log(green`\n\n${inverse`${tag}`} ${message}\n`);
-  } else {
-    console.log(red`\n\n${inverse`${tag}`} ${message}\n`);
-  }
-}
