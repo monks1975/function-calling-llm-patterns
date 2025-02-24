@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "react": "ts-node src/ReAct/main.ts",
+    "react-cli": "ts-node src/ReAct/main.ts",
+    "react-api": "ts-node src/ReAct/api.ts",
     "functions": "ts-node src/FUNCTIONS/index.ts",
     "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -23,8 +24,12 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "ansis": "^3.16.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "handlebars": "^4.7.8",
     "js-yaml": "^4.1.0",
     "mathjs": "^14.2.1",

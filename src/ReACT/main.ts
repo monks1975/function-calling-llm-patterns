@@ -1,5 +1,6 @@
 // ~/src/ReACT/main.ts
 // ReACT Agent CLI
+// run with: npm run react-cli
 
 import 'dotenv/config';
 import { red, inverse } from 'ansis';
