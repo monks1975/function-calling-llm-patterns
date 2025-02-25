@@ -1,5 +1,5 @@
 // ~/src/ReAct/api.ts
-// Simple express ReACT chat API
+// Simple express ReACT chat REST API
 
 import 'dotenv/config';
 import { z } from 'zod';
