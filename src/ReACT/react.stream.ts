@@ -26,6 +26,7 @@ const react_response_schema = z.object({
 export class ReActStream {
   private agent: ReActAgent;
   private readonly WORD_DELAY_MS = 25;
+  private readonly WORD_DELAY_VARIANCE = 15; // Add up to ±15ms variance
   private readonly ROUND_DELAY_MS = 500;
   private config: ReActStreamConfig;
 
@@ -51,7 +52,12 @@ export class ReActStream {
     const words = text.split(/(\s+)/); // Split on whitespace but keep the whitespace
     for (const word of words) {
       readable.push(word);
-      await new Promise((resolve) => setTimeout(resolve, this.WORD_DELAY_MS));
+      // Calculate a random delay between (base - variance) and (base + variance)
+      const randomDelay =
+        this.WORD_DELAY_MS + (Math.random() * 2 - 1) * this.WORD_DELAY_VARIANCE;
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.max(10, randomDelay))
+      );
     }
   }
 
