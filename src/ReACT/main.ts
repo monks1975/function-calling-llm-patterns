@@ -146,7 +146,7 @@ function setup_event_listeners() {
   });
 
   ReActAgentSingleton.on(
-    'tool-observation',
+    'toolObservation',
     (observation: { data: string; is_error: boolean }) => {
       debug({ observation }, 'Tool observation');
     }
@@ -154,7 +154,7 @@ function setup_event_listeners() {
 
   // Add listener for content moderation events
   ReActAgentSingleton.on(
-    'content-moderation',
+    'contentModeration',
     (moderation_data: {
       original_message: string;
       moderation_result: ModerationResult;
@@ -183,14 +183,14 @@ function start_interactive_mode(stream: ReActStream) {
 
   // Function to force exit the process
   const forceExit = () => {
-    // Try to exit gracefully first
-    process.exit(0);
-
-    // If we're still here after 100ms, use SIGKILL on our own process
+    // If we're still here after 1000ms, use SIGKILL on our own process
     setTimeout(() => {
       console.log('Process still running, using SIGKILL...');
       process.kill(process.pid, 'SIGKILL');
-    }, 100);
+    }, 1000);
+
+    // Try to exit gracefully first
+    process.exit(0);
   };
 
   console.log('ReACT Agent CLI - Enter your questions (type "exit" to quit)\n');

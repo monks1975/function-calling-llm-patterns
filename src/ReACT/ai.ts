@@ -4,7 +4,7 @@
 import { EventEmitter } from 'events';
 import OpenAI from 'openai';
 
-import { Moderator, type ModerationResult } from './moderation';
+import { Moderator } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
@@ -32,6 +32,12 @@ export interface AiRetryNotification {
   attempt: number;
   backoff_ms: number;
   error: string;
+}
+
+// Define event types for AiGenerate class
+export interface AiEvents {
+  retry: (notification: AiRetryNotification) => void;
+  completion: (completion: ChatCompletion) => void;
 }
 
 class AiError extends Error {
@@ -188,36 +194,22 @@ export class AiGenerate {
     return true;
   }
 
-  public on(
-    event: 'retry' | 'completion' | 'content-moderation',
-    listener: (
-      notification:
-        | AiRetryNotification
-        | ChatCompletion
-        | {
-            original_message: string;
-            moderation_result: ModerationResult;
-            violated_categories: string[];
-          }
-    ) => void
-  ): this {
+  /**
+   * Register an event listener
+   * @param event The event to listen for
+   * @param listener The callback function
+   */
+  public on<K extends keyof AiEvents>(event: K, listener: AiEvents[K]): this {
     this.emitter.on(event, listener);
     return this;
   }
 
-  public off(
-    event: 'retry' | 'completion' | 'content-moderation',
-    listener: (
-      notification:
-        | AiRetryNotification
-        | ChatCompletion
-        | {
-            original_message: string;
-            moderation_result: ModerationResult;
-            violated_categories: string[];
-          }
-    ) => void
-  ): this {
+  /**
+   * Remove an event listener
+   * @param event The event to stop listening for
+   * @param listener The callback function to remove
+   */
+  public off<K extends keyof AiEvents>(event: K, listener: AiEvents[K]): this {
     this.emitter.off(event, listener);
     return this;
   }

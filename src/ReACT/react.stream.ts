@@ -25,10 +25,10 @@ const react_response_schema = z.object({
 
 export class ReActStream {
   private agent: ReActAgent;
+  private config: ReActStreamConfig;
   private readonly WORD_DELAY_MS = 25;
   private readonly WORD_DELAY_VARIANCE = 15; // Add up to ±15ms variance
   private readonly ROUND_DELAY_MS = 500;
-  private config: ReActStreamConfig;
 
   constructor(
     agent: ReActAgent,
@@ -50,8 +50,8 @@ export class ReActStream {
 
           // Remove all listeners from the agent that were added for this stream
           this.agent.off('chunk', () => {});
-          this.agent.off('tool-observation', () => {});
-          this.agent.off('final-answer', () => {});
+          this.agent.off('toolObservation', () => {});
+          this.agent.off('finalAnswer', () => {});
           this.agent.off('error', () => {});
 
           // Force garbage collection of any pending promises
@@ -132,10 +132,10 @@ export class ReActStream {
             }
           });
         })
-        .on('tool-observation', (observation) => {
+        .on('toolObservation', (observation) => {
           // Observations are handled externally, no logging needed
         })
-        .on('final-answer', async () => {
+        .on('finalAnswer', async () => {
           // Wait for all streaming to complete before ending the stream
           await current_stream_promise;
           readable.push(null); // End the stream

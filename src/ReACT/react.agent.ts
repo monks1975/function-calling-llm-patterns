@@ -6,7 +6,7 @@ import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { AiGenerate } from './ai';
+import { AiGenerate, type AiEvents } from './ai';
 
 import {
   content_violation,
@@ -23,12 +23,9 @@ import {
   init_tools_from_config,
 } from './tools/setup';
 
-import type { AiConfig, AiRetryNotification } from './ai';
+import type { AiConfig } from './ai';
 
-import type {
-  ChatCompletionMessageParam,
-  ChatCompletion,
-} from 'openai/resources/chat/completions';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 import type { ModerationResult } from './moderation';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
@@ -36,18 +33,14 @@ import type { ToolResponse } from './tools/helpers';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
 
-export interface ReActEvents {
+// Define ReActEvents interface that extends AiEvents
+export interface ReActEvents extends AiEvents {
   chunk: (chunk: string) => void;
-  'tool-observation': (observation: {
-    data: string;
-    is_error: boolean;
-  }) => void;
-  'final-answer': (answer: string) => void;
+  toolObservation: (observation: { data: string; is_error: boolean }) => void;
+  finalAnswer: (answer: string) => void;
   iteration: (count: number) => void;
   error: (error: Error) => void;
-  retry: (notification: AiRetryNotification) => void;
-  completion: (completion: ChatCompletion) => void;
-  'content-moderation': (moderation_data: {
+  contentModeration: (moderation_data: {
     original_message: string;
     moderation_result: ModerationResult;
     violated_categories: string[];
@@ -55,28 +48,20 @@ export interface ReActEvents {
 }
 
 export class ReActAgent extends AiGenerate {
-  // Map of tool names to their implementations. Tools are functions that the
-  // agent can use to interact with external systems or perform computations
+  // Map of tool names to their implementations
   private tools: Map<string, ToolDefinition>;
 
-  // Maps alternative tool names to their primary names (e.g. "add" ->
-  // "calculator")
-  // Allows tools to be called by multiple names
+  // Maps alternative tool names to their primary names
   private tool_name_map: Map<string, string>;
 
-  // Maximum number of thought/action cycles the agent can perform before being
-  // forced to return an answer
+  // Maximum number of thought/action cycles
   private max_iterations: number;
 
-  // Event emitter for broadcasting agent events like tool usage, final answers,
-  // and errors
+  // Event emitter for ReAct-specific events
   private react_emitter: EventEmitter;
 
-  // Stores the original user question for reference, particularly useful when
-  // max iterations is reached
+  // Stores the original user question
   private original_question: string | null;
-  private retry_listener: ((notification: AiRetryNotification) => void) | null;
-  private completion_listener: ((completion: ChatCompletion) => void) | null;
 
   constructor(
     config: AiConfig,
@@ -90,19 +75,7 @@ export class ReActAgent extends AiGenerate {
     this.max_iterations = max_iterations;
     this.react_emitter = new EventEmitter();
     this.react_emitter.setMaxListeners(20);
-    this.emitter.setMaxListeners(20);
     this.original_question = null;
-
-    // Set up event forwarding
-    this.retry_listener = (notification: AiRetryNotification) => {
-      this.react_emitter.emit('retry', notification);
-    };
-    this.completion_listener = (completion: ChatCompletion) => {
-      this.react_emitter.emit('completion', completion);
-    };
-
-    this.on('retry', this.retry_listener);
-    this.on('completion', this.completion_listener);
 
     // Load base few shot examples
     const base_few_shot = load_and_convert_yaml(
@@ -142,66 +115,62 @@ export class ReActAgent extends AiGenerate {
       role: 'system',
       content: system_instructions,
     });
+
+    // Set up event forwarding from parent class
+    this.setupEventForwarding();
   }
 
-  // Override of EventEmitter's on() method to properly handle event routing
-  // Parent events (retry/completion) go to parent class, others to
-  // react_emitter
+  /**
+   * Set up event forwarding from parent AiGenerate class to ReActAgent
+   * This ensures events emitted by the parent class are also emitted by this class
+   */
+  private setupEventForwarding(): void {
+    // Forward retry events
+    super.on('retry', (notification) => {
+      this.react_emitter.emit('retry', notification);
+    });
+
+    // Forward completion events
+    super.on('completion', (completion) => {
+      this.react_emitter.emit('completion', completion);
+    });
+  }
+
+  /**
+   * Register an event listener
+   * @param event The event to listen for
+   * @param listener The callback function
+   */
   public override on<K extends keyof ReActEvents>(
     event: K,
     listener: ReActEvents[K]
   ): this {
-    if (
-      event === 'retry' ||
-      event === 'completion' ||
-      event === 'content-moderation'
-    ) {
-      // These events are handled by parent class only
-      super.on(event, listener as any);
-    } else {
-      // All other events go to react_emitter only
-      this.react_emitter.on(event, listener);
-    }
+    this.react_emitter.on(event, listener);
     return this;
   }
 
-  // Override of EventEmitter's off() method to properly handle event removal
-  // Ensures events are removed from the correct emitter
+  /**
+   * Remove an event listener
+   * @param event The event to stop listening for
+   * @param listener The callback function to remove
+   */
   public override off<K extends keyof ReActEvents>(
     event: K,
     listener: ReActEvents[K]
   ): this {
-    if (
-      event === 'retry' ||
-      event === 'completion' ||
-      event === 'content-moderation'
-    ) {
-      // Remove listeners from parent class only
-      super.off(event, listener as any);
-    } else {
-      // Remove listeners from react_emitter only
-      this.react_emitter.off(event, listener);
-    }
+    this.react_emitter.off(event, listener);
     return this;
   }
 
-  // Removes all event listeners to prevent memory leaks
-  // Should be called when the agent is no longer needed
-  public cleanup(): void {
+  /**
+   * Removes all event listeners to prevent memory leaks
+   * Should be called when the agent is no longer needed
+   */
+  public override cleanup(): void {
     // Abort any pending operations
     this.abort();
 
-    if (this.retry_listener) {
-      this.off('retry', this.retry_listener);
-      this.retry_listener = null;
-    }
-    if (this.completion_listener) {
-      this.off('completion', this.completion_listener);
-      this.completion_listener = null;
-    }
-
-    // Remove all listeners from both emitters
-    this.emitter.removeAllListeners();
+    // Remove all listeners from react_emitter
     this.react_emitter.removeAllListeners();
 
     // Call parent class cleanup to ensure complete resource release
@@ -300,10 +269,10 @@ export class ReActAgent extends AiGenerate {
       return messages;
     }
 
-    // Emit a content-moderation event with the moderation result and original message
-    this.emitter.emit('content-moderation', {
+    // Emit content moderation event
+    this.react_emitter.emit('contentModeration', {
       original_message: last_message.content,
-      moderation_result: moderation_result,
+      moderation_result,
       violated_categories: Object.entries(moderation_result.categories)
         .filter(([_, violated]) => violated)
         .map(([category, _]) => category),
@@ -353,7 +322,7 @@ export class ReActAgent extends AiGenerate {
       recent_thoughts: recent_thoughts,
     });
 
-    this.react_emitter.emit('tool-observation', {
+    this.react_emitter.emit('toolObservation', {
       data: max_iterations_message,
       is_error: true,
     });
@@ -376,6 +345,7 @@ export class ReActAgent extends AiGenerate {
         type: 'json_object',
       });
 
+      // Emit chunk event for streaming
       this.react_emitter.emit('chunk', response);
       return response;
     } catch (error) {
@@ -463,13 +433,13 @@ export class ReActAgent extends AiGenerate {
             !parsed_response.final_answer
           ) {
             const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
-            this.react_emitter.emit('final-answer', forced_answer);
+            this.react_emitter.emit('finalAnswer', forced_answer);
             return forced_answer;
           }
 
           if (parsed_response.final_answer) {
             this.react_emitter.emit(
-              'final-answer',
+              'finalAnswer',
               parsed_response.final_answer
             );
             return parsed_response.final_answer;
@@ -481,7 +451,8 @@ export class ReActAgent extends AiGenerate {
               parsed_response.input
             );
 
-            this.react_emitter.emit('tool-observation', {
+            // Emit tool observation event
+            this.react_emitter.emit('toolObservation', {
               data: observation,
               is_error: false,
             });
@@ -494,7 +465,8 @@ export class ReActAgent extends AiGenerate {
         } catch (error) {
           const error_observation = this.handle_error(error);
 
-          this.react_emitter.emit('tool-observation', {
+          // Emit tool observation error event
+          this.react_emitter.emit('toolObservation', {
             data: `Error: ${error_observation}`,
             is_error: true,
           });
