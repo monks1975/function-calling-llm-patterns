@@ -2,7 +2,11 @@
 // class for AI generation tasks
 
 import { EventEmitter } from 'events';
+import Handlebars from 'handlebars';
 import OpenAI from 'openai';
+
+import { content_violation } from './react.instructions';
+import { Moderator, type ModerationResult } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
@@ -18,6 +22,11 @@ export interface AiConfig {
   temperature?: number;
   timeout_ms?: number;
   max_retries?: number;
+  moderator?: Moderator;
+  moderation_config?: {
+    blocked_message?: string;
+    safeguarding_message?: string;
+  };
 }
 
 export interface AiRetryNotification {
@@ -36,7 +45,16 @@ class AiError extends Error {
 
 export class AiGenerate {
   protected readonly openai: OpenAI;
-  protected readonly config: Required<AiConfig>;
+  protected readonly config: Required<
+    Omit<AiConfig, 'moderator' | 'moderation_config'>
+  > & {
+    moderator?: Moderator;
+    moderation_config?: {
+      blocked_message?: string;
+      safeguarding_message?: string;
+    };
+  };
+
   protected abort_controller: AbortController | null = null;
   protected messages: ChatCompletionMessageParam[] = [];
   protected emitter: EventEmitter;
@@ -57,6 +75,11 @@ export class AiGenerate {
       max_retries: config.max_retries ?? 3,
       base_url: config.base_url ?? 'https://api.openai.com/v1',
       api_key: config.api_key,
+      moderator: config.moderator,
+      moderation_config: {
+        blocked_message: config.moderation_config?.blocked_message,
+        safeguarding_message: config.moderation_config?.safeguarding_message,
+      },
     };
   }
 
@@ -66,6 +89,64 @@ export class AiGenerate {
   ): Promise<string> {
     let attempt = 0;
     let last_error: Error | null = null;
+
+    // Check if the last message is from the user and needs moderation
+    if (this.config.moderator && messages.length > 0) {
+      const last_message = messages[messages.length - 1];
+
+      if (
+        last_message.role === 'user' &&
+        typeof last_message.content === 'string'
+      ) {
+        const moderation_result = await this.config.moderator.moderate(
+          last_message.content
+        );
+
+        if (moderation_result.flagged) {
+          // Emit a content-moderation event with the moderation result and original message
+          this.emitter.emit('content-moderation', {
+            original_message: last_message.content,
+            moderation_result: moderation_result,
+            violated_categories: Object.entries(moderation_result.categories)
+              .filter(([_, violated]) => violated)
+              .map(([category, _]) => category),
+          });
+
+          const violated_categories = Object.entries(
+            moderation_result.categories
+          )
+            .filter(([_, violated]) => violated)
+            .map(([category, _]) => category);
+
+          const blocked_message =
+            this.config.moderation_config?.blocked_message ??
+            'This message contained sensitive and/or offensive material and has been removed';
+
+          messages = [
+            ...messages.slice(0, -1),
+            {
+              role: 'user',
+              content: blocked_message,
+            },
+          ];
+
+          const safeguarding_message =
+            this.config.moderation_config?.safeguarding_message;
+
+          const final_answer = Handlebars.compile(content_violation)({
+            violated_categories: violated_categories.join(', '),
+            safeguarding_message: safeguarding_message,
+          });
+
+          // Return a final answer indicating moderation flag with violated categories
+          return JSON.stringify({
+            thought:
+              "The user's last message has been flagged by content moderation. I need to conclude the conversation immediately.",
+            final_answer: final_answer,
+          });
+        }
+      }
+    }
 
     while (attempt < this.config.max_retries) {
       try {
@@ -164,16 +245,34 @@ export class AiGenerate {
   }
 
   public on(
-    event: 'retry' | 'completion',
-    listener: (notification: AiRetryNotification | ChatCompletion) => void
+    event: 'retry' | 'completion' | 'content-moderation',
+    listener: (
+      notification:
+        | AiRetryNotification
+        | ChatCompletion
+        | {
+            original_message: string;
+            moderation_result: ModerationResult;
+            violated_categories: string[];
+          }
+    ) => void
   ): this {
     this.emitter.on(event, listener);
     return this;
   }
 
   public off(
-    event: 'retry' | 'completion',
-    listener: (notification: AiRetryNotification | ChatCompletion) => void
+    event: 'retry' | 'completion' | 'content-moderation',
+    listener: (
+      notification:
+        | AiRetryNotification
+        | ChatCompletion
+        | {
+            original_message: string;
+            moderation_result: ModerationResult;
+            violated_categories: string[];
+          }
+    ) => void
   ): this {
     this.emitter.off(event, listener);
     return this;

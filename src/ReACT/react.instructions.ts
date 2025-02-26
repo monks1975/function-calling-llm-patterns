@@ -49,3 +49,15 @@ Your recent thoughts were:
 
 You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.
 `.trim();
+
+export const content_violation = `
+I'm unable to respond to this request as it contains content that violates usage policies in the following categories:
+
+{{violated_categories}}
+
+{{#if safeguarding_message}}
+{{safeguarding_message}}
+{{else}}
+Please contact appropriate support services if you need assistance with sensitive matters.
+{{/if}}
+`.trim();

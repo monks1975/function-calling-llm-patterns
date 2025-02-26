@@ -18,6 +18,7 @@ import {
 } from './tools/setup';
 
 import type { AiConfig, AiRetryNotification } from './ai';
+import type { ModerationResult } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
@@ -40,6 +41,11 @@ export interface ReActEvents {
   error: (error: Error) => void;
   retry: (notification: AiRetryNotification) => void;
   completion: (completion: ChatCompletion) => void;
+  'content-moderation': (moderation_data: {
+    original_message: string;
+    moderation_result: ModerationResult;
+    violated_categories: string[];
+  }) => void;
 }
 
 export class ReActAgent extends AiGenerate {
@@ -137,7 +143,11 @@ export class ReActAgent extends AiGenerate {
     event: K,
     listener: ReActEvents[K]
   ): this {
-    if (event === 'retry' || event === 'completion') {
+    if (
+      event === 'retry' ||
+      event === 'completion' ||
+      event === 'content-moderation'
+    ) {
       // These events are handled by parent class only
       super.on(event, listener as any);
     } else {
@@ -153,7 +163,11 @@ export class ReActAgent extends AiGenerate {
     event: K,
     listener: ReActEvents[K]
   ): this {
-    if (event === 'retry' || event === 'completion') {
+    if (
+      event === 'retry' ||
+      event === 'completion' ||
+      event === 'content-moderation'
+    ) {
       // Remove listeners from parent class only
       super.off(event, listener as any);
     } else {
@@ -174,6 +188,8 @@ export class ReActAgent extends AiGenerate {
       this.off('completion', this.completion_listener);
       this.completion_listener = null;
     }
+    // Remove all content-moderation listeners
+    this.emitter.removeAllListeners('content-moderation');
     this.react_emitter.removeAllListeners();
   }
 
