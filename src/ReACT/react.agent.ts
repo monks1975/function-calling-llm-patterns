@@ -7,7 +7,13 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 
 import { AiGenerate } from './ai';
-import { instructions, reached_max_iterations } from './react.instructions';
+
+import {
+  content_violation,
+  instructions,
+  reached_max_iterations,
+} from './react.instructions';
+
 import { load_and_convert_yaml } from './helpers';
 import { react_response_schema } from './react.schema';
 
@@ -18,13 +24,13 @@ import {
 } from './tools/setup';
 
 import type { AiConfig, AiRetryNotification } from './ai';
-import type { ModerationResult } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
   ChatCompletion,
 } from 'openai/resources/chat/completions';
 
+import type { ModerationResult } from './moderation';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
 
@@ -83,6 +89,8 @@ export class ReActAgent extends AiGenerate {
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
     this.react_emitter = new EventEmitter();
+    this.react_emitter.setMaxListeners(20);
+    this.emitter.setMaxListeners(20);
     this.original_question = null;
 
     // Set up event forwarding
@@ -180,6 +188,9 @@ export class ReActAgent extends AiGenerate {
   // Removes all event listeners to prevent memory leaks
   // Should be called when the agent is no longer needed
   public cleanup(): void {
+    // Abort any pending operations
+    this.abort();
+
     if (this.retry_listener) {
       this.off('retry', this.retry_listener);
       this.retry_listener = null;
@@ -188,9 +199,20 @@ export class ReActAgent extends AiGenerate {
       this.off('completion', this.completion_listener);
       this.completion_listener = null;
     }
-    // Remove all content-moderation listeners
-    this.emitter.removeAllListeners('content-moderation');
+
+    // Remove all listeners from both emitters
+    this.emitter.removeAllListeners();
     this.react_emitter.removeAllListeners();
+
+    // Call parent class cleanup to ensure complete resource release
+    super.cleanup();
+
+    // Clear tool references to help garbage collection
+    this.tools.clear();
+    this.tool_name_map.clear();
+
+    // Log cleanup for debugging purposes
+    console.log('ReActAgent cleanup completed');
   }
 
   // Executes a tool with the given input and returns the result
@@ -252,6 +274,61 @@ export class ReActAgent extends AiGenerate {
     return [systemMessage, ...recentMessages];
   }
 
+  // Handles content moderation for the last user message
+  private async handle_moderation(
+    messages: ChatCompletionMessageParam[]
+  ): Promise<ChatCompletionMessageParam[]> {
+    // If no moderator is configured or no messages, return original messages
+    if (!this.config.moderator || messages.length === 0) {
+      return messages;
+    }
+
+    const last_message = messages[messages.length - 1];
+
+    if (
+      last_message.role !== 'user' ||
+      typeof last_message.content !== 'string'
+    ) {
+      return messages;
+    }
+
+    const moderation_result = await this.config.moderator.moderate(
+      last_message.content
+    );
+
+    if (!moderation_result.flagged) {
+      return messages;
+    }
+
+    // Emit a content-moderation event with the moderation result and original message
+    this.emitter.emit('content-moderation', {
+      original_message: last_message.content,
+      moderation_result: moderation_result,
+      violated_categories: Object.entries(moderation_result.categories)
+        .filter(([_, violated]) => violated)
+        .map(([category, _]) => category),
+    });
+
+    const violated_categories = Object.entries(moderation_result.categories)
+      .filter(([_, violated]) => violated)
+      .map(([category, _]) => category);
+
+    // Create a tool observation message about the content warning
+    const tool_observation = Handlebars.compile(content_violation)({
+      violated_categories: violated_categories.join(', '),
+      safeguarding_message: this.config.moderation_config?.safeguarding_message,
+    });
+
+    // Replace the user's message with the tool observation
+    return [
+      ...messages.slice(0, -1),
+      {
+        role: 'user',
+        content: tool_observation,
+      },
+    ];
+  }
+
   // Handles the case when the agent reaches maximum iterations without finding
   // an answer.
   // Generates a helpful error message including recent thoughts and the
@@ -287,13 +364,18 @@ export class ReActAgent extends AiGenerate {
     });
   }
 
-  // Gets the next response from the AI model and handles any errors
-  // Emits the response chunks for streaming
+  // Override the get_model_response method to include moderation handling
   private async get_model_response(): Promise<string> {
     try {
-      const response = await this.get_completion(this.get_context_messages(), {
+      // Get context messages and apply moderation if needed
+      const context_messages = this.get_context_messages();
+      const moderated_messages = await this.handle_moderation(context_messages);
+
+      // Call the parent class's get_completion method with the possibly moderated messages
+      const response = await super.get_completion(moderated_messages, {
         type: 'json_object',
       });
+
       this.react_emitter.emit('chunk', response);
       return response;
     } catch (error) {

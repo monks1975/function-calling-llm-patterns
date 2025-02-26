@@ -39,7 +39,30 @@ export class ReActStream {
   }
 
   public create_readable_stream(question: string): Readable {
-    const readable = new Readable({ read: () => {} });
+    const readable = new Readable({
+      read: () => {},
+      // Add destroy handler to clean up resources
+      destroy: (error, callback) => {
+        // Cancel any pending operations in the agent
+        try {
+          // Abort any pending requests in the agent
+          this.agent.abort();
+
+          // Remove all listeners from the agent that were added for this stream
+          this.agent.off('chunk', () => {});
+          this.agent.off('tool-observation', () => {});
+          this.agent.off('final-answer', () => {});
+          this.agent.off('error', () => {});
+
+          // Force garbage collection of any pending promises
+          global.gc && global.gc();
+        } catch (cleanupError) {
+          console.error('Error during stream cleanup:', cleanupError);
+        }
+
+        if (callback) callback(error);
+      },
+    });
 
     this.stream_response(question, readable).catch((error) => {
       readable.destroy(error);

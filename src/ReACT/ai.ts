@@ -2,10 +2,8 @@
 // class for AI generation tasks
 
 import { EventEmitter } from 'events';
-import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 
-import { content_violation } from './react.instructions';
 import { Moderator, type ModerationResult } from './moderation';
 
 import type {
@@ -66,6 +64,8 @@ export class AiGenerate {
     });
 
     this.emitter = new EventEmitter();
+    // Set maximum listeners to prevent warnings
+    this.emitter.setMaxListeners(20);
 
     this.config = {
       model: config.model,
@@ -90,55 +90,7 @@ export class AiGenerate {
     let attempt = 0;
     let last_error: Error | null = null;
 
-    // Check if the last message is from the user and needs moderation
-    if (this.config.moderator && messages.length > 0) {
-      const last_message = messages[messages.length - 1];
-
-      if (
-        last_message.role === 'user' &&
-        typeof last_message.content === 'string'
-      ) {
-        const moderation_result = await this.config.moderator.moderate(
-          last_message.content
-        );
-
-        if (moderation_result.flagged) {
-          // Emit a content-moderation event with the moderation result and original message
-          this.emitter.emit('content-moderation', {
-            original_message: last_message.content,
-            moderation_result: moderation_result,
-            violated_categories: Object.entries(moderation_result.categories)
-              .filter(([_, violated]) => violated)
-              .map(([category, _]) => category),
-          });
-
-          const violated_categories = Object.entries(
-            moderation_result.categories
-          )
-            .filter(([_, violated]) => violated)
-            .map(([category, _]) => category);
-
-          // Create a tool observation message about the content warning
-          const tool_observation = Handlebars.compile(content_violation)({
-            violated_categories: violated_categories.join(', '),
-            safeguarding_message:
-              this.config.moderation_config?.safeguarding_message,
-          });
-
-          // Replace the user's message with the tool observation
-          messages = [
-            ...messages.slice(0, -1),
-            {
-              role: 'user',
-              content: tool_observation,
-            },
-          ];
-
-          // Continue with normal processing instead of returning immediately
-          // This allows the model to generate its own final answer based on the tool observation
-        }
-      }
-    }
+    // Moderation logic has been moved to ReActAgent class
 
     while (attempt < this.config.max_retries) {
       try {
@@ -280,5 +232,20 @@ export class AiGenerate {
 
   public get_messages(): ChatCompletionMessageParam[] {
     return [...this.messages];
+  }
+
+  /**
+   * Cleans up resources used by this instance.
+   * Should be called when the instance is no longer needed to prevent memory leaks.
+   */
+  public cleanup(): void {
+    // Abort any pending requests
+    this.abort();
+
+    // Remove all event listeners
+    this.emitter.removeAllListeners();
+
+    // Clear message history to help garbage collection
+    this.messages = [];
   }
 }
