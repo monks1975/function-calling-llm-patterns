@@ -1,7 +1,7 @@
 // ~/src/ReACT/react.stream.ts
 // stream implementation for the ReAct agent
 
-import { ReActAgent } from './react.agent';
+import { ReActAgent, type ReActCallbacks } from './react.agent';
 import { Readable } from 'stream';
 import { z } from 'zod';
 
@@ -38,35 +38,36 @@ export class ReActStream {
     this.config = { ...DEFAULT_STREAM_CONFIG, ...config };
   }
 
-  public create_readable_stream(question: string): Readable {
+  /**
+   * Create a readable stream that processes the question and streams the response
+   *
+   * @param question The user's question to process
+   * @param callbacks Optional callbacks for handling events during processing
+   * @returns A readable stream that emits the response
+   */
+  public create_readable_stream(
+    question: string,
+    external_callbacks?: ReActCallbacks
+  ): Readable {
+    // Create a readable stream with a simple cleanup handler
     const readable = new Readable({
       read: () => {},
-      // Add destroy handler to clean up resources
       destroy: (error, callback) => {
-        // Cancel any pending operations in the agent
-        try {
-          // Abort any pending requests in the agent
-          this.agent.abort();
-
-          // Remove all listeners from the agent that were added for this stream
-          this.agent.off('chunk', () => {});
-          this.agent.off('toolObservation', () => {});
-          this.agent.off('finalAnswer', () => {});
-          this.agent.off('error', () => {});
-
-          // Force garbage collection of any pending promises
-          global.gc && global.gc();
-        } catch (cleanupError) {
-          console.error('Error during stream cleanup:', cleanupError);
-        }
+        // Abort any pending requests in the agent
+        this.agent.abort();
 
         if (callback) callback(error);
       },
     });
 
-    this.stream_response(question, readable).catch((error) => {
-      readable.destroy(error);
-    });
+    // Start processing in the background
+    this.process_question(question, readable, external_callbacks).catch(
+      (error) => {
+        readable.destroy(
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
+    );
 
     return readable;
   }
@@ -84,18 +85,30 @@ export class ReActStream {
     }
   }
 
-  private async stream_response(question: string, readable: Readable) {
+  private async process_question(
+    question: string,
+    readable: Readable,
+    external_callbacks?: ReActCallbacks
+  ) {
     try {
+      // Use a promise to track the current streaming operation
       let current_stream_promise = Promise.resolve();
 
-      // Set up event handlers for the agent
-      this.agent
-        .on('chunk', (chunk) => {
-          // Chain the streaming promises
+      // Define callbacks for the agent
+      const callbacks: ReActCallbacks = {
+        // Merge external callbacks with our stream-specific ones
+        ...external_callbacks,
+
+        onChunk: (chunk) => {
+          // Call external callback if provided
+          external_callbacks?.onChunk?.(chunk);
+
+          // Chain the streaming promises to ensure proper sequence
           current_stream_promise = current_stream_promise.then(async () => {
             try {
               const parsed = react_response_schema.parse(JSON.parse(chunk));
 
+              // Stream thoughts if enabled
               if (parsed.thought && this.config.stream_thoughts) {
                 readable.push('\n*');
                 await this.stream_words(readable, parsed.thought);
@@ -105,6 +118,7 @@ export class ReActStream {
                 );
               }
 
+              // Stream actions if enabled
               if (
                 parsed.action &&
                 parsed.input !== undefined &&
@@ -121,32 +135,48 @@ export class ReActStream {
                 );
               }
 
+              // Stream final answer
               if (parsed.final_answer) {
                 readable.push('\n');
                 await this.stream_words(readable, parsed.final_answer);
                 readable.push('\n');
               }
             } catch (e) {
-              // If we can't parse as JSON or it doesn't match our schema, stream the raw chunk
+              // If parsing fails, stream the raw chunk
               await this.stream_words(readable, chunk);
             }
           });
-        })
-        .on('toolObservation', (observation) => {
-          // Observations are handled externally, no logging needed
-        })
-        .on('finalAnswer', async () => {
-          // Wait for all streaming to complete before ending the stream
+        },
+
+        // Merge with external callbacks but ensure we handle tool observations
+        onToolObservation: (observation) => {
+          // Call external callback if provided
+          external_callbacks?.onToolObservation?.(observation);
+        },
+
+        // End the stream when we have a final answer
+        onFinalAnswer: async (answer) => {
+          // Call external callback if provided
+          external_callbacks?.onFinalAnswer?.(answer);
+
+          // Wait for all streaming to complete before ending
           await current_stream_promise;
           readable.push(null); // End the stream
-        })
-        .on('error', (error) => {
-          readable.destroy(error);
-        });
+        },
 
-      // Start the agent's processing
-      await this.agent.answer(question);
+        // Handle errors by destroying the stream
+        onError: (error) => {
+          // Call external callback if provided
+          external_callbacks?.onError?.(error);
+
+          readable.destroy(error);
+        },
+      };
+
+      // Process the question with our callbacks
+      await this.agent.answer(question, callbacks);
     } catch (error) {
+      // If any error occurs during processing, destroy the stream
       readable.destroy(
         error instanceof Error ? error : new Error(String(error))
       );

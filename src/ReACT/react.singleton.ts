@@ -1,11 +1,10 @@
-// ~/src/ReACT/agent_singleton.ts
+// ~/src/ReACT/react.singleton.ts
 // Singleton wrapper for ReActAgent
 // Suitable for CLI applications where only one agent is needed at a time
 
-import { ReActAgent } from './react.agent';
+import { ReActAgent, type ReActCallbacks } from './react.agent';
 
 import type { AiConfig } from './ai';
-import type { ReActEvents } from './react.agent';
 import type { ToolsConfig } from './tools/setup';
 
 /**
@@ -111,37 +110,6 @@ export class ReActAgentSingleton {
   }
 
   /**
-   * Add a typed event listener to the agent
-   * This is a convenience method that ensures type safety for event listeners
-   *
-   * @param event The event to listen for
-   * @param listener The callback function
-   */
-  public static on<K extends keyof ReActEvents>(
-    event: K,
-    listener: ReActEvents[K]
-  ): void {
-    const agent = this.get_agent();
-    agent.on(event, listener);
-  }
-
-  /**
-   * Remove a typed event listener from the agent
-   * This is a convenience method that ensures type safety for event listeners
-   *
-   * @param event The event to stop listening for
-   * @param listener The callback function to remove
-   */
-  public static off<K extends keyof ReActEvents>(
-    event: K,
-    listener: ReActEvents[K]
-  ): void {
-    if (this.instance) {
-      this.instance.off(event, listener);
-    }
-  }
-
-  /**
    * Set up handlers to ensure cleanup on process exit
    * This prevents memory leaks if the process exits unexpectedly
    */
@@ -173,6 +141,32 @@ export class ReActAgentSingleton {
       });
 
       this._handlers_set = true;
+    }
+  }
+
+  /**
+   * Process a user's question and get an answer
+   * This is the main method to interact with the agent
+   *
+   * @param question The user's question
+   * @param callbacks Optional callbacks for handling events during processing
+   * @returns A promise that resolves to the answer
+   */
+  public static async answer(
+    question: string,
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
+    const agent = this.get_agent();
+    return agent.answer(question, callbacks);
+  }
+
+  /**
+   * Abort any ongoing request
+   * Useful when the user wants to cancel a long-running operation
+   */
+  public static abort(): void {
+    if (this.instance) {
+      this.instance.abort();
     }
   }
 }

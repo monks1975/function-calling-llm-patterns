@@ -6,7 +6,7 @@ const today = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
 }).format(new Date());
 
-export const instructions = `
+export const react_instruction_template = `
 You are a ReAct agent that thinks step by step to solve problems.
 You have access to a set of tools that are specific to the user's needs.
 
@@ -39,8 +39,8 @@ Never include an "observation" field - that will always come from a tool.
 Today's date is ${today}.
 `.trim();
 
-export const reached_max_iterations = `
-[Tool Observation] You have reached the maximum number of iterations ({{max_iterations}}).
+export const max_iterations_template = `
+You have reached the maximum number of iterations ({{max_iterations}}).
 
 Original question was: "{{original_question}}"
 
@@ -50,8 +50,8 @@ Your recent thoughts were:
 You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.
 `.trim();
 
-export const content_violation = `
-[Tool Observation] Content warning: This user's message contained potentially harmful content that could be categorized as: {{violated_categories}}. It is recommended to use this observation to formulate an appropriate final answer in your next response.
+export const content_violation_template = `
+Content warning: This user's message contained potentially harmful content that could be categorized as: {{violated_categories}}. It is recommended to use this observation to formulate an appropriate final answer in your next response.
 
 {{#if safeguarding_message}}
 Include the following an accurate variation on the following safeguarding message as the core of your response: {{safeguarding_message}}

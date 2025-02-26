@@ -1,10 +1,9 @@
 // ~/src/ReACT/ai.ts
 // class for AI generation tasks
 
-import { EventEmitter } from 'events';
 import OpenAI from 'openai';
 
-import { Moderator } from './moderation';
+import type { Moderator } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
@@ -34,10 +33,9 @@ export interface AiRetryNotification {
   error: string;
 }
 
-// Define event types for AiGenerate class
-export interface AiEvents {
-  retry: (notification: AiRetryNotification) => void;
-  completion: (completion: ChatCompletion) => void;
+export interface AiCallbacks {
+  onRetry?: (notification: AiRetryNotification) => void;
+  onCompletion?: (completion: ChatCompletion) => void;
 }
 
 class AiError extends Error {
@@ -61,17 +59,12 @@ export class AiGenerate {
 
   protected abort_controller: AbortController | null = null;
   protected messages: ChatCompletionMessageParam[] = [];
-  protected emitter: EventEmitter;
 
   constructor(config: AiConfig) {
     this.openai = new OpenAI({
       baseURL: config.base_url,
       apiKey: config.api_key,
     });
-
-    this.emitter = new EventEmitter();
-    // Set maximum listeners to prevent warnings
-    this.emitter.setMaxListeners(20);
 
     this.config = {
       model: config.model,
@@ -91,16 +84,19 @@ export class AiGenerate {
 
   protected async get_completion(
     messages: ChatCompletionMessageParam[],
-    response_format?: ChatCompletionCreateParamsBase['response_format']
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
   ): Promise<string> {
     let attempt = 0;
     let last_error: Error | null = null;
 
-    // Moderation logic has been moved to ReActAgent class
-
     while (attempt < this.config.max_retries) {
       try {
-        return await this.execute_with_timeout(messages, response_format);
+        return await this.execute_with_timeout(
+          messages,
+          response_format,
+          callbacks
+        );
       } catch (error) {
         last_error = error instanceof Error ? error : new Error(String(error));
 
@@ -108,7 +104,7 @@ export class AiGenerate {
           throw last_error;
         }
 
-        if (!(await this.handle_retry(++attempt, last_error))) {
+        if (!(await this.handle_retry(++attempt, last_error, callbacks))) {
           break;
         }
       }
@@ -122,7 +118,8 @@ export class AiGenerate {
 
   protected async execute_with_timeout(
     messages: ChatCompletionMessageParam[],
-    response_format?: ChatCompletionCreateParamsBase['response_format']
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
   ): Promise<string> {
     this.abort_controller = new AbortController();
 
@@ -137,7 +134,7 @@ export class AiGenerate {
 
     try {
       return await Promise.race([
-        this.execute(messages, response_format),
+        this.execute(messages, response_format, callbacks),
         timeout_promise,
       ]);
     } finally {
@@ -147,7 +144,8 @@ export class AiGenerate {
 
   protected async execute(
     messages: ChatCompletionMessageParam[],
-    response_format?: ChatCompletionCreateParamsBase['response_format']
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
   ): Promise<string> {
     const completion = await this.openai.chat.completions.create(
       {
@@ -162,15 +160,16 @@ export class AiGenerate {
       }
     );
 
-    // Emit the completion response for logging
-    this.emitter.emit('completion', completion);
+    // Notify via callback instead of event
+    callbacks?.onCompletion?.(completion);
 
     return completion.choices[0]?.message?.content ?? '';
   }
 
   protected async handle_retry(
     attempt: number,
-    error: Error
+    error: Error,
+    callbacks?: AiCallbacks
   ): Promise<boolean> {
     if (attempt >= this.config.max_retries) {
       return false;
@@ -188,30 +187,11 @@ export class AiGenerate {
       error: error.message,
     };
 
-    this.emitter.emit('retry', notification);
+    // Notify via callback instead of event
+    callbacks?.onRetry?.(notification);
 
     await new Promise((resolve) => setTimeout(resolve, backoff_ms));
     return true;
-  }
-
-  /**
-   * Register an event listener
-   * @param event The event to listen for
-   * @param listener The callback function
-   */
-  public on<K extends keyof AiEvents>(event: K, listener: AiEvents[K]): this {
-    this.emitter.on(event, listener);
-    return this;
-  }
-
-  /**
-   * Remove an event listener
-   * @param event The event to stop listening for
-   * @param listener The callback function to remove
-   */
-  public off<K extends keyof AiEvents>(event: K, listener: AiEvents[K]): this {
-    this.emitter.off(event, listener);
-    return this;
   }
 
   public abort(): void {
@@ -226,16 +206,9 @@ export class AiGenerate {
     return [...this.messages];
   }
 
-  /**
-   * Cleans up resources used by this instance.
-   * Should be called when the instance is no longer needed to prevent memory leaks.
-   */
   public cleanup(): void {
     // Abort any pending requests
     this.abort();
-
-    // Remove all event listeners
-    this.emitter.removeAllListeners();
 
     // Clear message history to help garbage collection
     this.messages = [];

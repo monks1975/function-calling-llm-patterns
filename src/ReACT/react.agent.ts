@@ -1,17 +1,16 @@
 // ~/src/ReACT/react-agent.ts
 // ReAct agent implementation
 
-import { EventEmitter } from 'events';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { AiGenerate, type AiEvents } from './ai';
+import { AiGenerate, type AiCallbacks } from './ai';
 
 import {
-  content_violation,
-  instructions,
-  reached_max_iterations,
+  content_violation_template,
+  react_instruction_template,
+  max_iterations_template,
 } from './react.instructions';
 
 import { load_and_convert_yaml } from './helpers';
@@ -33,14 +32,16 @@ import type { ToolResponse } from './tools/helpers';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
 
-// Define ReActEvents interface that extends AiEvents
-export interface ReActEvents extends AiEvents {
-  chunk: (chunk: string) => void;
-  toolObservation: (observation: { data: string; is_error: boolean }) => void;
-  finalAnswer: (answer: string) => void;
-  iteration: (count: number) => void;
-  error: (error: Error) => void;
-  contentModeration: (moderation_data: {
+export interface ReActCallbacks extends AiCallbacks {
+  onChunk?: (chunk: string) => void;
+  onToolObservation?: (observation: {
+    data: string;
+    is_error: boolean;
+  }) => void;
+  onFinalAnswer?: (answer: string) => void;
+  onIteration?: (count: number) => void;
+  onError?: (error: Error) => void;
+  onContentModeration?: (moderation_data: {
     original_message: string;
     moderation_result: ModerationResult;
     violated_categories: string[];
@@ -57,9 +58,6 @@ export class ReActAgent extends AiGenerate {
   // Maximum number of thought/action cycles
   private max_iterations: number;
 
-  // Event emitter for ReAct-specific events
-  private react_emitter: EventEmitter;
-
   // Stores the original user question
   private original_question: string | null;
 
@@ -73,8 +71,6 @@ export class ReActAgent extends AiGenerate {
     this.tools = new Map();
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
-    this.react_emitter = new EventEmitter();
-    this.react_emitter.setMaxListeners(20);
     this.original_question = null;
 
     // Load base few shot examples
@@ -104,7 +100,7 @@ export class ReActAgent extends AiGenerate {
     const tools_few_shot = get_tool_examples(tools_config);
     const tools_description = get_tools_for_prompt(available_tools);
 
-    const system_instructions = Handlebars.compile(instructions)({
+    const system_instructions = Handlebars.compile(react_instruction_template)({
       base_few_shot: base_few_shot,
       tools: tools_description,
       tools_few_shot: tools_few_shot,
@@ -115,73 +111,6 @@ export class ReActAgent extends AiGenerate {
       role: 'system',
       content: system_instructions,
     });
-
-    // Set up event forwarding from parent class
-    this.setupEventForwarding();
-  }
-
-  /**
-   * Set up event forwarding from parent AiGenerate class to ReActAgent
-   * This ensures events emitted by the parent class are also emitted by this class
-   */
-  private setupEventForwarding(): void {
-    // Forward retry events
-    super.on('retry', (notification) => {
-      this.react_emitter.emit('retry', notification);
-    });
-
-    // Forward completion events
-    super.on('completion', (completion) => {
-      this.react_emitter.emit('completion', completion);
-    });
-  }
-
-  /**
-   * Register an event listener
-   * @param event The event to listen for
-   * @param listener The callback function
-   */
-  public override on<K extends keyof ReActEvents>(
-    event: K,
-    listener: ReActEvents[K]
-  ): this {
-    this.react_emitter.on(event, listener);
-    return this;
-  }
-
-  /**
-   * Remove an event listener
-   * @param event The event to stop listening for
-   * @param listener The callback function to remove
-   */
-  public override off<K extends keyof ReActEvents>(
-    event: K,
-    listener: ReActEvents[K]
-  ): this {
-    this.react_emitter.off(event, listener);
-    return this;
-  }
-
-  /**
-   * Removes all event listeners to prevent memory leaks
-   * Should be called when the agent is no longer needed
-   */
-  public override cleanup(): void {
-    // Abort any pending operations
-    this.abort();
-
-    // Remove all listeners from react_emitter
-    this.react_emitter.removeAllListeners();
-
-    // Call parent class cleanup to ensure complete resource release
-    super.cleanup();
-
-    // Clear tool references to help garbage collection
-    this.tools.clear();
-    this.tool_name_map.clear();
-
-    // Log cleanup for debugging purposes
-    console.log('ReActAgent cleanup completed');
   }
 
   // Executes a tool with the given input and returns the result
@@ -245,7 +174,8 @@ export class ReActAgent extends AiGenerate {
 
   // Handles content moderation for the last user message
   private async handle_moderation(
-    messages: ChatCompletionMessageParam[]
+    messages: ChatCompletionMessageParam[],
+    callbacks?: ReActCallbacks
   ): Promise<ChatCompletionMessageParam[]> {
     // If no moderator is configured or no messages, return original messages
     if (!this.config.moderator || messages.length === 0) {
@@ -254,9 +184,11 @@ export class ReActAgent extends AiGenerate {
 
     const last_message = messages[messages.length - 1];
 
+    // Skip moderation for tool observations (identified by name field)
     if (
       last_message.role !== 'user' ||
-      typeof last_message.content !== 'string'
+      typeof last_message.content !== 'string' ||
+      (last_message as any).name === 'tool_observation'
     ) {
       return messages;
     }
@@ -269,40 +201,37 @@ export class ReActAgent extends AiGenerate {
       return messages;
     }
 
-    // Emit content moderation event
-    this.react_emitter.emit('contentModeration', {
-      original_message: last_message.content,
-      moderation_result,
-      violated_categories: Object.entries(moderation_result.categories)
-        .filter(([_, violated]) => violated)
-        .map(([category, _]) => category),
-    });
-
     const violated_categories = Object.entries(moderation_result.categories)
       .filter(([_, violated]) => violated)
       .map(([category, _]) => category);
 
+    callbacks?.onContentModeration?.({
+      original_message: last_message.content,
+      moderation_result,
+      violated_categories,
+    });
+
     // Create a tool observation message about the content warning
-    const tool_observation = Handlebars.compile(content_violation)({
+    const content_violation = Handlebars.compile(content_violation_template)({
       violated_categories: violated_categories.join(', '),
       safeguarding_message: this.config.moderation_config?.safeguarding_message,
     });
 
-    // Replace the user's message with the tool observation
+    // Replace the user's message with the tool observation and mark it with the
+    // tool_observation prefix
     return [
       ...messages.slice(0, -1),
       {
         role: 'user',
-        content: tool_observation,
-      },
+        name: 'tool_observation',
+        content: `[Tool Observation] ${content_violation}`,
+      } as ChatCompletionMessageParam,
     ];
   }
 
   // Handles the case when the agent reaches maximum iterations without finding
   // an answer.
-  // Generates a helpful error message including recent thoughts and the
-  // original question
-  private async handle_max_iterations_reached() {
+  private async handle_max_iterations_reached(callbacks?: ReActCallbacks) {
     const recent_thoughts = this.get_messages()
       .filter((m) => m.role === 'assistant')
       .map((m) => {
@@ -316,50 +245,58 @@ export class ReActAgent extends AiGenerate {
       .slice(-3)
       .join('\n');
 
-    const max_iterations_message = Handlebars.compile(reached_max_iterations)({
+    const max_iterations_reached = Handlebars.compile(max_iterations_template)({
       max_iterations: this.max_iterations,
       original_question: this.original_question,
       recent_thoughts: recent_thoughts,
     });
 
-    this.react_emitter.emit('toolObservation', {
-      data: max_iterations_message,
+    callbacks?.onToolObservation?.({
+      data: max_iterations_reached,
       is_error: true,
     });
 
+    // Add the message and mark it as a tool observation using the name field
     this.add_message({
       role: 'user',
-      content: max_iterations_message,
-    });
+      name: 'tool_observation',
+      content: `[Tool Observation] ${max_iterations_reached}`,
+    } as ChatCompletionMessageParam);
   }
 
-  // Override the get_model_response method to include moderation handling
-  private async get_model_response(): Promise<string> {
+  // Get model response with callbacks for notifications
+  private async get_model_response(
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
     try {
       // Get context messages and apply moderation if needed
       const context_messages = this.get_context_messages();
-      const moderated_messages = await this.handle_moderation(context_messages);
+      const moderated_messages = await this.handle_moderation(
+        context_messages,
+        callbacks
+      );
 
       // Call the parent class's get_completion method with the possibly moderated messages
-      const response = await super.get_completion(moderated_messages, {
-        type: 'json_object',
-      });
+      const response = await super.get_completion(
+        moderated_messages,
+        { type: 'json_object' },
+        {
+          onRetry: callbacks?.onRetry,
+          onCompletion: callbacks?.onCompletion,
+        }
+      );
 
-      // Emit chunk event for streaming
-      this.react_emitter.emit('chunk', response);
+      callbacks?.onChunk?.(response);
       return response;
     } catch (error) {
-      this.react_emitter.emit(
-        'error',
-        error instanceof Error ? error : new Error(String(error))
-      );
-      throw error;
+      const typedError =
+        error instanceof Error ? error : new Error(String(error));
+      callbacks?.onError?.(typedError);
+      throw typedError;
     }
   }
 
-  // Parses and validates the AI model's response to ensure it matches the
-  // expected ReAct format
-  // Throws detailed errors if the response is invalid
+  // Parses and validates the AI model's response
   private parse_react_response(response_text: string): ReActResponse {
     if (!response_text.trim()) {
       throw new Error('Empty response from model');
@@ -381,7 +318,6 @@ export class ReActAgent extends AiGenerate {
   }
 
   // Converts various error types into human-readable error messages
-  // Handles JSON parsing errors, schema validation errors, and general errors
   private handle_error(error: unknown): string {
     if (error instanceof SyntaxError) {
       return 'Invalid JSON response from model. Response must be valid JSON containing at least a "thought" field. Example valid response: { "thought": "thinking about the problem", "final_answer": "the answer" }';
@@ -396,16 +332,13 @@ export class ReActAgent extends AiGenerate {
   }
 
   // Main method to process a user's question using the ReAct approach
-  // Manages the thought/action cycle, tool execution, and response generation
-  // Returns the final answer or an error message if max iterations are reached
-  async answer(question: string) {
+  async answer(question: string, callbacks?: ReActCallbacks): Promise<string> {
     if (!question || typeof question !== 'string') {
       throw new Error('Question must be a non-empty string');
     }
 
     try {
       this.original_question = question;
-
       this.add_message({ role: 'user', content: question });
 
       let iterations = 0;
@@ -413,14 +346,14 @@ export class ReActAgent extends AiGenerate {
       while (iterations < this.max_iterations) {
         iterations++;
 
-        this.react_emitter.emit('iteration', iterations);
+        callbacks?.onIteration?.(iterations);
 
         if (iterations === this.max_iterations) {
-          await this.handle_max_iterations_reached();
+          await this.handle_max_iterations_reached(callbacks);
         }
 
         try {
-          const response_text = await this.get_model_response();
+          const response_text = await this.get_model_response(callbacks);
           const parsed_response = this.parse_react_response(response_text);
 
           this.add_message({
@@ -433,15 +366,13 @@ export class ReActAgent extends AiGenerate {
             !parsed_response.final_answer
           ) {
             const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
-            this.react_emitter.emit('finalAnswer', forced_answer);
+
+            callbacks?.onFinalAnswer?.(forced_answer);
             return forced_answer;
           }
 
           if (parsed_response.final_answer) {
-            this.react_emitter.emit(
-              'finalAnswer',
-              parsed_response.final_answer
-            );
+            callbacks?.onFinalAnswer?.(parsed_response.final_answer);
             return parsed_response.final_answer;
           }
 
@@ -451,30 +382,32 @@ export class ReActAgent extends AiGenerate {
               parsed_response.input
             );
 
-            // Emit tool observation event
-            this.react_emitter.emit('toolObservation', {
+            callbacks?.onToolObservation?.({
               data: observation,
               is_error: false,
             });
 
+            // Add the message and mark it as a tool observation using the name field
             this.add_message({
               role: 'user',
+              name: 'tool_observation',
               content: `[Tool Observation] ${observation}`,
-            });
+            } as ChatCompletionMessageParam);
           }
         } catch (error) {
           const error_observation = this.handle_error(error);
 
-          // Emit tool observation error event
-          this.react_emitter.emit('toolObservation', {
+          callbacks?.onToolObservation?.({
             data: `Error: ${error_observation}`,
             is_error: true,
           });
 
+          // Add the message and mark it as a tool observation using the name field
           this.add_message({
             role: 'user',
+            name: 'tool_observation',
             content: `[Tool Observation] Error: ${error_observation}`,
-          });
+          } as ChatCompletionMessageParam);
         }
       }
 
@@ -482,5 +415,20 @@ export class ReActAgent extends AiGenerate {
     } catch (error) {
       throw error;
     }
+  }
+
+  public override cleanup(): void {
+    // Abort any pending requests
+    this.abort();
+
+    // Clear tool references to help garbage collection
+    this.tools.clear();
+    this.tool_name_map.clear();
+
+    // Call parent class cleanup
+    super.cleanup();
+
+    // Log cleanup for debugging purposes
+    console.log('ReActAgent cleanup completed');
   }
 }

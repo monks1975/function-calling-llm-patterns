@@ -13,10 +13,10 @@ import { ReActStream, type ReActStreamConfig } from './react.stream';
 import type { AiConfig, AiRetryNotification } from './ai';
 import type { ChatCompletion } from 'openai/resources/chat/completions';
 import type { ModerationResult } from './moderation';
+import type { ReActCallbacks } from './react.agent';
 import type { Readable } from 'stream';
 import type { ToolsConfig } from './tools/setup';
 
-// Load environment variables
 dotenv.config();
 
 /**
@@ -38,11 +38,11 @@ async function main() {
     // Create the stream for interactive output
     const stream = new ReActStream(agent, stream_config);
 
-    // Set up event listeners
-    setup_event_listeners();
+    // Set up callbacks for the agent
+    const callbacks = create_callbacks();
 
     // Start the interactive readline interface
-    start_interactive_mode(stream);
+    start_interactive_mode(stream, callbacks);
   } catch (error) {
     console.error(
       'Error:',
@@ -133,29 +133,28 @@ function load_stream_config(): ReActStreamConfig {
 }
 
 /**
- * Set up event listeners for the agent
+ * Set up callbacks for the agent
+ * @returns ReActCallbacks object with all callback handlers
  */
-function setup_event_listeners() {
-  // Listen for completion events to log ai request data
-  ReActAgentSingleton.on('completion', (completion: ChatCompletion) => {
-    debug({ completion }, 'Request completed');
-  });
+function create_callbacks(): ReActCallbacks {
+  return {
+    // Handle completion events to log ai request data
+    onCompletion: (completion: ChatCompletion) => {
+      debug({ completion }, 'Request completed');
+    },
 
-  ReActAgentSingleton.on('retry', (notification: AiRetryNotification) => {
-    debug({ notification }, 'Retry');
-  });
+    // Handle retry notifications
+    onRetry: (notification: AiRetryNotification) => {
+      debug({ notification }, 'Retry');
+    },
 
-  ReActAgentSingleton.on(
-    'toolObservation',
-    (observation: { data: string; is_error: boolean }) => {
+    // Handle tool observations
+    onToolObservation: (observation: { data: string; is_error: boolean }) => {
       debug({ observation }, 'Tool observation');
-    }
-  );
+    },
 
-  // Add listener for content moderation events
-  ReActAgentSingleton.on(
-    'contentModeration',
-    (moderation_data: {
+    // Handle content moderation events
+    onContentModeration: (moderation_data: {
       original_message: string;
       moderation_result: ModerationResult;
       violated_categories: string[];
@@ -168,14 +167,17 @@ function setup_event_listeners() {
         },
         'Content moderation flagged message'
       );
-    }
-  );
+    },
+  };
 }
 
 /**
  * Start the interactive readline interface
  */
-function start_interactive_mode(stream: ReActStream) {
+function start_interactive_mode(
+  stream: ReActStream,
+  callbacks: ReActCallbacks
+) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -226,8 +228,9 @@ function start_interactive_mode(stream: ReActStream) {
 
       try {
         // Store reference to the current stream
-        current_stream = stream.create_readable_stream(question);
+        current_stream = stream.create_readable_stream(question, callbacks);
 
+        // Set up simple event handlers for the stream
         current_stream.on('data', (chunk: Buffer) => {
           process.stdout.write(chunk.toString());
         });
@@ -241,6 +244,7 @@ function start_interactive_mode(stream: ReActStream) {
           current_stream = null;
         });
 
+        // Wait for the stream to end
         await new Promise<void>((resolve) => {
           if (current_stream) {
             current_stream.on('end', resolve);
