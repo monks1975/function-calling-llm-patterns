@@ -118,32 +118,24 @@ export class AiGenerate {
             .filter(([_, violated]) => violated)
             .map(([category, _]) => category);
 
-          const blocked_message =
-            this.config.moderation_config?.blocked_message ??
-            'This message contained sensitive and/or offensive material and has been removed';
+          // Create a tool observation message about the content warning
+          const tool_observation = Handlebars.compile(content_violation)({
+            violated_categories: violated_categories.join(', '),
+            safeguarding_message:
+              this.config.moderation_config?.safeguarding_message,
+          });
 
+          // Replace the user's message with the tool observation
           messages = [
             ...messages.slice(0, -1),
             {
               role: 'user',
-              content: blocked_message,
+              content: tool_observation,
             },
           ];
 
-          const safeguarding_message =
-            this.config.moderation_config?.safeguarding_message;
-
-          const final_answer = Handlebars.compile(content_violation)({
-            violated_categories: violated_categories.join(', '),
-            safeguarding_message: safeguarding_message,
-          });
-
-          // Return a final answer indicating moderation flag with violated categories
-          return JSON.stringify({
-            thought:
-              "The user's last message has been flagged by content moderation. I need to conclude the conversation immediately.",
-            final_answer: final_answer,
-          });
+          // Continue with normal processing instead of returning immediately
+          // This allows the model to generate its own final answer based on the tool observation
         }
       }
     }

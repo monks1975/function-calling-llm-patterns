@@ -51,13 +51,13 @@ You must now provide a final_answer that explains what you've discovered so far 
 `.trim();
 
 export const content_violation = `
-I'm unable to respond to this request as it contains content that violates usage policies in the following categories:
-
-{{violated_categories}}
+[Tool Observation] Content warning: This user's message contained potentially harmful content that could be categorized as: {{violated_categories}}. It is recommended to use this observation to formulate an appropriate final answer in your next response.
 
 {{#if safeguarding_message}}
-{{safeguarding_message}}
+Include the following an accurate variation on the following safeguarding message as the core of your response: {{safeguarding_message}}
 {{else}}
-Please contact appropriate support services if you need assistance with sensitive matters.
+Please include a supportive message in your response suggesting the user contact appropriate UK-based support services if they need assistance with sensitive matters.
 {{/if}}
+
+Please ensure your response is appropriate and does not contain any harmful content.
 `.trim();

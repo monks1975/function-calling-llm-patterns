@@ -42,7 +42,7 @@ const ai_config: AiConfig = {
   api_key: api_key,
   model: 'llama3.1-8b',
   max_tokens: 8192,
-  temperature: 0.2,
+  temperature: 0.6,
   moderator: moderator,
   moderation_config: {
     blocked_message:
