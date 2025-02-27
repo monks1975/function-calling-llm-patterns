@@ -27,6 +27,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { ModerationResult } from './moderation';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
+import { AiError } from './ai';
 
 type ReActResponse = z.infer<typeof react_response_schema>;
 
@@ -326,6 +327,56 @@ export class ReActAgent extends AiGenerate {
         error.errors.map((e) => e.message).join(', ')
       );
     }
+
+    // Handle AiError with enhanced error details
+    if (error instanceof AiError) {
+      let errorMessage = error.message;
+
+      // Add status code if available
+      if (error.status) {
+        errorMessage = `${error.status} status code - ${errorMessage}`;
+      }
+
+      // Add relevant headers if available
+      if (error.headers) {
+        const relevantHeaders = [
+          'x-request-id',
+          'openai-organization',
+          'openai-processing-ms',
+          'openai-version',
+          'x-ratelimit-limit-requests',
+          'x-ratelimit-remaining-requests',
+          'x-ratelimit-reset-requests',
+          'x-ratelimit-limit-tokens',
+          'x-ratelimit-remaining-tokens',
+          'x-ratelimit-reset-tokens',
+        ];
+
+        const headerInfo = relevantHeaders
+          .filter((header) => error.headers && header in error.headers)
+          .map((header) => `${header}: ${error.headers![header]}`)
+          .join(', ');
+
+        if (headerInfo) {
+          errorMessage += ` (Headers: ${headerInfo})`;
+        }
+      }
+
+      // Add error details if available
+      if (error.errorDetails) {
+        const detailsStr = Object.entries(error.errorDetails)
+          .filter(([key, value]) => value && key !== 'message') // Skip message as it's already included
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(', ');
+
+        if (detailsStr) {
+          errorMessage += ` (Details: ${detailsStr})`;
+        }
+      }
+
+      return errorMessage;
+    }
+
     return error instanceof Error ? error.message : String(error);
   }
 
