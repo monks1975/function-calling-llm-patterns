@@ -112,9 +112,9 @@ function load_tools_config(): ToolsConfig {
     library: {
       enabled: true,
       config: {
-        library_name: 'Steve Jobs Isaacson Biography Library',
+        library_name: 'Student Handbook',
         library_description:
-          'A library focused on the biography of Steve Jobs by Walter Isaacson. It contains detailed information about Steve Jobs life, work, and leadership at Apple.',
+          'A library focused on the Student Handbook for Bolton College.',
         library_uuid: process.env.DOJO_API_LIBRARY_UUID,
       },
     },
