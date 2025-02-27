@@ -10,6 +10,7 @@ A comprehensive framework for implementing function calling with Large Language 
 - [Tool Usage](#tool-usage)
 - [Streaming API](#streaming-api)
 - [Implementation Approaches](#implementation-approaches)
+- [Using Local Models](#using-local-models)
 
 ## Installation
 
@@ -286,6 +287,93 @@ Extends the basic function calling approach with database integration:
 - Transaction support for data modifications
 - Query result caching and optimization
 - Automatic schema inference and validation
+
+## Using Local Models
+
+### Setting up llama.cpp for Local Inference
+
+You can run the ReACT agent with local models using llama.cpp. This is particularly useful for development, testing, or when you prefer to keep inference on your local machine.
+
+### Installation (macOS)
+
+1. Install llama.cpp via Homebrew:
+
+   ```bash
+   brew install llama-cpp
+   ```
+
+2. Download a compatible model. For ReACT pattern support, we recommend Qwen 2.5 7B:
+
+   ```bash
+   # Using the llama-cpp HuggingFace integration
+   llama-server --hf-repo kaetemi/Qwen2.5-7B-Q5_K_M-GGUF --hf-file qwen2.5-7b-q5_k_m-imat.gguf
+   ```
+
+### Running the Local Server
+
+Start the llama.cpp server with JSON schema support for ReACT pattern:
+
+```bash
+llama-server --hf-repo kaetemi/Qwen2.5-7B-Q5_K_M-GGUF --hf-file qwen2.5-7b-q5_k_m-imat.gguf -c 2048 --json-schema '{
+  "type": "object",
+  "properties": {
+    "thought": {
+      "type": "string"
+    },
+    "input": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object" },
+        { "type": "null" }
+      ]
+    },
+    "action": {
+      "type": ["string", "null"]
+    },
+    "final_answer": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": ["thought"]
+}'
+```
+
+This command:
+
+- Loads the Qwen 2.5 7B model in Q5_K_M quantization
+- Sets the context window to 2048 tokens
+- Configures JSON output format compatible with the ReACT pattern
+
+### Configuring the ReACT Agent
+
+Update your `.env` file to point to the local llama.cpp server:
+
+```
+# Local model configuration
+TOGETHER_API_KEY=not-needed-for-local
+LOCAL_MODEL_BASE_URL=http://127.0.0.1:8080/v1
+LOCAL_MODEL_NAME=qwen2.5-7b-q5_k_m-imat.gguf
+```
+
+Then in your code or configuration, set the base URL to the local server:
+
+```typescript
+// Example configuration in load_ai_config()
+return {
+  base_url: 'http://127.0.0.1:8080/v1',
+  api_key: together_api_key, // Can be any string for local server
+  model: 'qwen2.5-7b-q5_k_m-imat.gguf',
+  max_tokens: null,
+  temperature: 0.6,
+  // ... other configuration options
+};
+```
+
+### Performance Considerations
+
+- Local inference speed depends on your hardware capabilities
+- For better performance on CPU-only systems, consider using smaller models or higher quantization levels
+- GPU acceleration significantly improves inference speed if available
 
 ## License
 
