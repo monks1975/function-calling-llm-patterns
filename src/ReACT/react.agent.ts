@@ -23,9 +23,7 @@ import {
 } from './tools/setup';
 
 import type { AiConfig } from './ai';
-
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-
 import type { ModerationResult } from './moderation';
 import type { ToolDefinition, ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
