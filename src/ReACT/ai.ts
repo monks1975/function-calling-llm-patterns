@@ -15,7 +15,7 @@ export interface AiConfig {
   base_url?: string;
   api_key: string;
   model: string;
-  max_tokens?: number;
+  max_tokens?: number | null;
   temperature?: number;
   timeout_ms?: number;
   max_retries?: number;
@@ -31,6 +31,9 @@ export interface AiRetryNotification {
   attempt: number;
   backoff_ms: number;
   error: string;
+  status?: number;
+  headers?: Record<string, string>;
+  errorDetails?: Record<string, any>;
 }
 
 export interface AiCallbacks {
@@ -38,8 +41,14 @@ export interface AiCallbacks {
   onCompletion?: (completion: ChatCompletion) => void;
 }
 
-class AiError extends Error {
-  constructor(message: string, public readonly attempt?: number) {
+export class AiError extends Error {
+  constructor(
+    message: string,
+    public readonly attempt?: number,
+    public readonly status?: number,
+    public readonly headers?: Record<string, string>,
+    public readonly errorDetails?: Record<string, any>
+  ) {
     super(message);
     this.name = 'AiError';
   }
@@ -88,7 +97,7 @@ export class AiGenerate {
     callbacks?: AiCallbacks
   ): Promise<string> {
     let attempt = 0;
-    let last_error: Error | null = null;
+    let last_error: AiError | Error | null = null;
 
     while (attempt < this.config.max_retries) {
       try {
@@ -98,7 +107,28 @@ export class AiGenerate {
           callbacks
         );
       } catch (error) {
-        last_error = error instanceof Error ? error : new Error(String(error));
+        // Extract OpenAI API error details if available
+        if (error instanceof OpenAI.APIError) {
+          const status = error.status;
+          const headers = error.headers as Record<string, string>;
+          const errorDetails = {
+            type: error.type,
+            code: error.code,
+            param: error.param,
+            message: error.message,
+          };
+
+          last_error = new AiError(
+            error.message,
+            attempt + 1,
+            status,
+            headers,
+            errorDetails
+          );
+        } else {
+          last_error =
+            error instanceof Error ? error : new Error(String(error));
+        }
 
         if (last_error.name === 'AbortError') {
           throw last_error;
@@ -110,10 +140,14 @@ export class AiGenerate {
       }
     }
 
-    throw new AiError(
-      `Failed after ${this.config.max_retries} attempts. Last error: ${last_error?.message}`,
-      attempt
-    );
+    if (last_error instanceof AiError) {
+      throw last_error;
+    } else {
+      throw new AiError(
+        `Failed after ${this.config.max_retries} attempts. Last error: ${last_error?.message}`,
+        attempt
+      );
+    }
   }
 
   protected async execute_with_timeout(
@@ -186,6 +220,13 @@ export class AiGenerate {
       backoff_ms,
       error: error.message,
     };
+
+    // Add additional error details if available
+    if (error instanceof AiError) {
+      notification.status = error.status;
+      notification.headers = error.headers;
+      notification.errorDetails = error.errorDetails;
+    }
 
     // Notify via callback instead of event
     callbacks?.onRetry?.(notification);
