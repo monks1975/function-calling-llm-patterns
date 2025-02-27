@@ -59,14 +59,14 @@ async function main() {
  */
 function load_ai_config(): AiConfig {
   // Check for required environment variables
-  const cerebras_api_key = process.env.CEREBRAS_API_KEY;
+  const together_api_key = process.env.TOGETHER_API_KEY;
   const openai_api_key = process.env.OPENAI_API_KEY;
 
-  if (!cerebras_api_key) {
-    console.error('Error: CEREBRAS_API_KEY environment variable is not set');
+  if (!together_api_key) {
+    console.error('Error: TOGETHER_API_KEY environment variable is not set');
     console.error('Please create a .env file based on .env.example');
     console.error(
-      'Make sure to add your actual Cerebras API key to the .env file'
+      'Make sure to add your actual Together API key to the .env file'
     );
     process.exit(1);
   }
@@ -83,10 +83,10 @@ function load_ai_config(): AiConfig {
 
   // Configure AI chat
   return {
-    base_url: 'https://api.cerebras.ai/v1',
-    api_key: cerebras_api_key,
-    model: 'llama3.1-8b',
-    max_tokens: 8192,
+    base_url: 'https://api.together.xyz/v1',
+    api_key: together_api_key,
+    model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+    max_tokens: null,
     temperature: 0.6,
     moderator: moderator,
     moderation_config: {
