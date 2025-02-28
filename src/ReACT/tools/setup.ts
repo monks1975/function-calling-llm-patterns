@@ -12,6 +12,11 @@ import {
   text_schema as search_web_text_schema,
 } from './search.tool';
 
+import {
+  planner_tool,
+  text_schema as planner_text_schema,
+} from './planner.tool';
+
 import { create_library_tool } from './library.tool';
 import { load_and_convert_yaml } from '../helpers';
 
@@ -59,6 +64,10 @@ const library_examples = load_and_convert_yaml(
   path.join(__dirname, 'library.examples.yaml')
 );
 
+const planner_examples = load_and_convert_yaml(
+  path.join(__dirname, 'planner.examples.yaml')
+);
+
 // Tool factory definitions
 const calculator_factory: ToolFactory = {
   create: () => ({
@@ -84,6 +93,19 @@ const search_web_factory: ToolFactory = {
   examples: search_web_examples,
 };
 
+const planner_factory: ToolFactory = {
+  create: () => ({
+    name: 'Planner',
+    alternative_names: ['Plan', 'Planning', 'Progress', 'Self-reflection'],
+    description:
+      'An internal tool for planning and assessing progress toward answering the question',
+    schema: planner_text_schema,
+    execute: planner_tool,
+  }),
+  requires_config: false,
+  examples: planner_examples,
+};
+
 const library_factory: ToolFactory<LibraryToolConfig> = {
   create: (config) => {
     if (!config?.library_uuid) {
@@ -104,6 +126,7 @@ const library_factory: ToolFactory<LibraryToolConfig> = {
 export const available_tools = {
   calculator: calculator_factory,
   search_web: search_web_factory,
+  planner: planner_factory,
   library: library_factory,
 } as const;
 

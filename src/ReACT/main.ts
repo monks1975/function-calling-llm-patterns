@@ -103,6 +103,9 @@ function load_ai_config(): AiConfig {
 function load_tools_config(): ToolsConfig {
   // Configure which tools to enable and their configurations
   return {
+    planner: {
+      enabled: true,
+    },
     calculator: {
       enabled: true,
     },

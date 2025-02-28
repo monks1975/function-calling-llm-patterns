@@ -1,4 +1,4 @@
-// ~/src/ReACT/react-agent.ts
+// ~/src/ReACT/react.agent.ts
 // ReAct agent implementation
 
 import { z } from 'zod';
@@ -60,10 +60,24 @@ export class ReActAgent extends AiGenerate {
   // Stores the original user question
   private original_question: string | null;
 
+  // Stores previous actions and observations for planning
+  private previous_actions: Array<{
+    action: string;
+    input: any;
+    observation: string;
+  }>;
+
+  // Stores previous thoughts for planning
+  private previous_thoughts: string[];
+
+  // Flag to control when to use the planner
+  private use_planner_frequency: number;
+
   constructor(
     config: AiConfig,
     tools_config: ToolsConfig,
-    max_iterations: number = 5
+    max_iterations: number = 12,
+    use_planner_frequency: number = 2
   ) {
     super(config);
 
@@ -71,6 +85,9 @@ export class ReActAgent extends AiGenerate {
     this.tool_name_map = new Map();
     this.max_iterations = max_iterations;
     this.original_question = null;
+    this.previous_actions = [];
+    this.previous_thoughts = [];
+    this.use_planner_frequency = use_planner_frequency;
 
     // Load base few shot examples
     const base_few_shot = load_and_convert_yaml(
@@ -110,6 +127,28 @@ export class ReActAgent extends AiGenerate {
       role: 'system',
       content: system_instructions,
     });
+  }
+
+  // Collects previous thoughts and actions for the planner tool
+  private collect_history_for_planner(): {
+    previous_actions: Array<{
+      action: string;
+      input: any;
+      observation: string;
+    }>;
+    previous_thoughts: string[];
+  } {
+    return {
+      previous_actions: [...this.previous_actions],
+      previous_thoughts: [...this.previous_thoughts],
+    };
+  }
+
+  // Determines if the planner should be used in the current iteration
+  private should_use_planner(iteration: number): boolean {
+    // Use planner on every nth iteration (based on use_planner_frequency)
+    // But not on the first iteration
+    return iteration > 1 && iteration % this.use_planner_frequency === 0;
   }
 
   // Executes a tool with the given input and returns the result
@@ -390,12 +429,47 @@ export class ReActAgent extends AiGenerate {
       this.original_question = question;
       this.add_message({ role: 'user', content: question });
 
+      // Reset history for new question
+      this.previous_actions = [];
+      this.previous_thoughts = [];
+
       let iterations = 0;
 
       while (iterations < this.max_iterations) {
         iterations++;
 
         callbacks?.onIteration?.(iterations);
+
+        // Check if we should use the planner tool
+        if (this.should_use_planner(iterations)) {
+          try {
+            const history = this.collect_history_for_planner();
+
+            // Execute the planner tool
+            const planning_result = await this.execute_action('planner', {
+              question: this.original_question,
+              current_iteration: iterations,
+              max_iterations: this.max_iterations,
+              previous_actions: history.previous_actions,
+              previous_thoughts: history.previous_thoughts,
+            });
+
+            callbacks?.onToolObservation?.({
+              data: planning_result,
+              is_error: false,
+            });
+
+            // Add the planning result as a tool observation
+            this.add_message({
+              role: 'user',
+              name: 'tool_observation',
+              content: `[Tool Observation] ${planning_result}`,
+            } as ChatCompletionMessageParam);
+          } catch (error) {
+            // If planner fails, log the error but continue with the agent's normal flow
+            console.error('Planner tool error:', error);
+          }
+        }
 
         if (iterations === this.max_iterations) {
           await this.handle_max_iterations_reached(callbacks);
@@ -404,6 +478,11 @@ export class ReActAgent extends AiGenerate {
         try {
           const response_text = await this.get_model_response(callbacks);
           const parsed_response = this.parse_react_response(response_text);
+
+          // Store the thought for future planning
+          if (parsed_response.thought) {
+            this.previous_thoughts.push(parsed_response.thought);
+          }
 
           this.add_message({
             role: 'assistant',
@@ -426,10 +505,25 @@ export class ReActAgent extends AiGenerate {
           }
 
           if (parsed_response.action && parsed_response.input !== undefined) {
+            // Skip recording internal planner actions in the history
+            const is_internal_planner =
+              parsed_response.action.toLowerCase() === 'planner' ||
+              parsed_response.action.toLowerCase() === 'plan' ||
+              parsed_response.action.toLowerCase() === 'planning';
+
             const observation = await this.execute_action(
               parsed_response.action,
               parsed_response.input
             );
+
+            // Store the action and observation for future planning
+            if (!is_internal_planner) {
+              this.previous_actions.push({
+                action: parsed_response.action,
+                input: parsed_response.input,
+                observation: observation,
+              });
+            }
 
             callbacks?.onToolObservation?.({
               data: observation,
@@ -473,6 +567,10 @@ export class ReActAgent extends AiGenerate {
     // Clear tool references to help garbage collection
     this.tools.clear();
     this.tool_name_map.clear();
+
+    // Clear history arrays
+    this.previous_actions = [];
+    this.previous_thoughts = [];
 
     // Call parent class cleanup
     super.cleanup();

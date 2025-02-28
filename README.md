@@ -11,6 +11,7 @@ A comprehensive framework for implementing function calling with Large Language 
 - [Streaming API](#streaming-api)
 - [Implementation Approaches](#implementation-approaches)
 - [Using Local Models](#using-local-models)
+- [ReACT Agent with Self-Reflection and Planning](#react-agent-with-self-reflection-and-planning)
 
 ## Installation
 
@@ -374,6 +375,61 @@ return {
 - Local inference speed depends on your hardware capabilities
 - For better performance on CPU-only systems, consider using smaller models or higher quantization levels
 - GPU acceleration significantly improves inference speed if available
+
+## ReACT Agent with Self-Reflection and Planning
+
+This project extends the ReACT (Reasoning and Acting) agent with a self-reflection and planning capability. The extension allows the agent to assess its progress toward answering a question and plan its course of action more effectively.
+
+### Key Features
+
+1. **Self-Reflection**: The agent can assess whether it's making progress toward answering the question by analyzing the relevance of previous observations.
+
+2. **Progress Tracking**: The agent tracks all previous actions, observations, and thoughts to build a comprehensive history of its problem-solving process.
+
+3. **Automatic Planning**: The agent automatically uses the planner tool at configurable intervals to reassess its approach and determine if it's on the right track.
+
+4. **Resource Management**: The planner provides recommendations based on remaining iterations, helping the agent decide when to provide a final answer versus continuing to explore.
+
+### How It Works
+
+1. The agent maintains a history of:
+
+   - Previous actions and their results
+   - Previous thoughts and reasoning
+
+2. At configurable intervals, the agent uses the internal planner tool to:
+
+   - Summarize previous actions and thoughts
+   - Assess progress using relevance scoring
+   - Provide recommendations based on remaining iterations
+
+3. The planner tool generates a planning summary that includes:
+   - Original question
+   - Progress assessment
+   - Iteration status
+   - Previous actions summary
+   - Recent thoughts
+   - Recommendations
+
+### Benefits
+
+- **Improved Efficiency**: The agent can recognize when it's going down an unproductive path and change course.
+- **Better Resource Management**: The agent can make informed decisions about when to provide a final answer based on remaining iterations.
+- **Enhanced Transparency**: The planning summaries provide insight into the agent's reasoning process and progress.
+- **Reduced Iteration Waste**: By assessing progress, the agent can avoid wasting iterations on approaches that aren't yielding relevant information.
+
+### Configuration
+
+The planning feature can be configured through the ReActAgent constructor:
+
+```typescript
+const agent = new ReActAgent(
+  config,
+  tools_config,
+  (max_iterations = 5),
+  (use_planner_frequency = 2) // Use planner every 2 iterations
+);
+```
 
 ## License
 

@@ -16,6 +16,19 @@ If you run out of iterations, you must provide a final_answer that explains what
 
 Always take the first chance you get to provide a final_answer.
 
+SELF-REFLECTION AND PLANNING:
+You have access to a special "Planner" tool that helps you assess your progress and plan your next steps. This tool provides:
+1. A summary of your previous actions and thoughts
+2. An assessment of your progress toward answering the question
+3. Information about remaining iterations
+4. Recommendations based on your current state
+
+Use the Planner tool when you need to:
+- Assess if you're making progress toward answering the question
+- Determine if you should change your approach
+- Decide if you have enough information to provide a final answer
+- Plan your remaining iterations efficiently
+
 AVAILABLE TOOLS:
 
 {{{tools}}}
