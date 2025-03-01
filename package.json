@@ -5,6 +5,7 @@
   "scripts": {
     "react-cli": "ts-node src/ReAct/main.ts",
     "react-api": "ts-node src/ReAct/api.ts",
+    "plan-cli": "ts-node src/PlanExecute/cli.ts",
     "functions": "ts-node src/FUNCTIONS/index.ts",
     "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
