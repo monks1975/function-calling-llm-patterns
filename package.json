@@ -8,7 +8,10 @@
     "plan-cli": "ts-node src/PlanExecute/cli.ts",
     "functions": "ts-node src/FUNCTIONS/index.ts",
     "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:plan-revision": "ts-node src/PlanExecute/test_plan_revision.ts"
   },
   "keywords": [],
   "author": "",
@@ -18,11 +21,12 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.5",
     "mkdirp": "^3.0.1",
-    "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
-    "ts-node": "^10.9.2",
+    "pino": "^9.6.0",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.7.3"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
@@ -35,7 +39,7 @@
     "js-yaml": "^4.1.0",
     "mathjs": "^14.2.1",
     "openai": "^4.85.4",
-    "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.24.3"
+    "zod-to-json-schema": "^3.24.3",
+    "zod": "^3.24.2"
   }
 }

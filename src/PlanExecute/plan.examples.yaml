@@ -1,0 +1,240 @@
+examples:
+  # 1. Simple greeting example showing natural conversation
+  - - query: 'Hello! How are you?'
+      actions:
+        - id: 1
+          tool: llm
+          input: 'Respond with a friendly greeting to the user who said "Hello! How are you?"'
+          reasoning: 'Use LLM for natural conversation and greeting'
+          evidence_var: '#E1'
+
+  # 2. Basic factual query using Wikipedia
+  - - query: 'What is the capital of France?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'Paris capital of France'
+          reasoning: "Search Wikipedia for factual information about France's capital"
+          evidence_var: '#E1'
+
+  # 3. Multi-step arithmetic problem
+  - - query: 'If I have 5 apples and eat 2, then buy 3 more, how many do I have?'
+      actions:
+        - id: 1
+          tool: calculator
+          input: '5 - 2'
+          reasoning: 'First calculate remaining apples after eating'
+          evidence_var: '#E1'
+        - id: 2
+          tool: calculator
+          input: '#E1 + 3'
+          reasoning: 'Add newly bought apples to get final count'
+          evidence_var: '#E2'
+
+  # 4. Complex current events analysis
+  - - query: 'What are the latest developments in renewable energy technology?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'renewable energy technology'
+          reasoning: 'Get foundational technical information'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'major renewable energy breakthroughs scientific journals 2024'
+          reasoning: 'Get verified current developments from scientific sources'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Analyze recent developments in renewable energy based on #E2 and technical context from #E1'
+          reasoning: 'Synthesize and analyze the information'
+          evidence_var: '#E3'
+
+  # 5. Multi-tool calculation with fact lookup
+  - - query: 'What is the square root of 144 plus the year Wikipedia was launched?'
+      actions:
+        - id: 1
+          tool: calculator
+          input: 'sqrt(144)'
+          reasoning: 'First calculate the square root of 144'
+          evidence_var: '#E1'
+        - id: 2
+          tool: wikipedia
+          input: 'Wikipedia history launch date'
+          reasoning: 'Find when Wikipedia was launched'
+          evidence_var: '#E2'
+        - id: 3
+          tool: calculator
+          input: '#E1 + 2001'
+          reasoning: "Add the square root result to Wikipedia's launch year"
+          evidence_var: '#E3'
+
+  # 6. Market research query
+  - - query: 'What are the current trends in electric vehicle adoption?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'electric vehicle adoption trends'
+          reasoning: 'Get background and historical context'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'electric vehicle sales statistics IEA report 2024'
+          reasoning: 'Get current verified market data'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Analyze EV adoption trends based on historical context #E1 and current data #E2'
+          reasoning: 'Synthesize market insights'
+          evidence_var: '#E3'
+
+  # 7. Technical comparison
+  - - query: 'What is quantum computing and how does it compare to classical computing?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'quantum computing'
+          reasoning: 'Get technical background on quantum computing'
+          evidence_var: '#E1'
+        - id: 2
+          tool: wikipedia
+          input: 'classical computing'
+          reasoning: 'Get information about classical computing'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Compare and contrast quantum computing (#E1) with classical computing (#E2). Focus on key differences in approach and capabilities.'
+          reasoning: 'Synthesize and analyze the differences'
+          evidence_var: '#E3'
+
+  # 8. Current scientific research
+  - - query: 'What are the latest findings about black holes?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'black hole'
+          reasoning: 'Get fundamental physics background'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'black hole research findings NASA ESO 2024'
+          reasoning: 'Get latest verified astronomical observations'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Explain recent black hole discoveries (#E2) in context of known physics (#E1)'
+          reasoning: 'Synthesize findings for general audience'
+          evidence_var: '#E3'
+
+  # 9. Historical analysis
+  - - query: 'How did the printing press impact medieval society?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'printing press medieval impact'
+          reasoning: 'Research historical facts about the printing press'
+          evidence_var: '#E1'
+        - id: 2
+          tool: llm
+          input: 'Based on #E1, analyze how the printing press transformed medieval society in terms of education, religion, and information spread'
+          reasoning: 'Analyze and synthesize historical impacts'
+          evidence_var: '#E2'
+
+  # 10. Medical research synthesis
+  - - query: 'What are the latest treatments for type 2 diabetes?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'Type 2 diabetes treatment'
+          reasoning: 'Get foundational medical information'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'type 2 diabetes treatment guidelines WHO NIH 2024'
+          reasoning: 'Get current medical guidelines from authoritative sources'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Summarize current type 2 diabetes treatments based on established knowledge (#E1) and latest guidelines (#E2)'
+          reasoning: 'Synthesize medical information'
+          evidence_var: '#E3'
+
+  # 11. Simple follow-up response
+  - - query: "I'm doing well, thanks for asking! How about you?"
+      actions:
+        - id: 1
+          tool: llm
+          input: 'Respond naturally to the user follow-up greeting, maintaining conversational flow'
+          reasoning: 'Continue natural conversation with appropriate social response'
+          evidence_var: '#E1'
+
+  # 12. Complex follow-up on quantum computing
+  - - query: 'Could you explain more about how quantum entanglement works in quantum computing?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'quantum entanglement computing'
+          reasoning: 'Get detailed technical information about quantum entanglement'
+          evidence_var: '#E1'
+        - id: 2
+          tool: llm
+          input: 'Explain quantum entanglement (#E1) in simpler terms, focusing on its role in quantum computing'
+          reasoning: 'Break down complex concept for better understanding'
+          evidence_var: '#E2'
+
+  # 13. Clarification on renewable energy
+  - - query: 'You mentioned renewable energy breakthroughs. Can you focus specifically on recent solar panel efficiency improvements?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'solar panel efficiency technology'
+          reasoning: 'Get technical background on solar panel efficiency'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'latest solar panel efficiency records research 2024'
+          reasoning: 'Find recent breakthroughs in solar efficiency'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Analyze recent solar panel efficiency improvements (#E2) in context of historical development (#E1)'
+          reasoning: 'Provide focused analysis on solar technology progress'
+          evidence_var: '#E3'
+
+  # 14. STEM teaching assistance
+  - - query: 'How can I create an engaging lesson plan about DNA replication for high school students?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'DNA replication process steps'
+          reasoning: 'Get accurate scientific information'
+          evidence_var: '#E1'
+        - id: 2
+          tool: google
+          input: 'interactive DNA replication teaching activities high school'
+          reasoning: 'Find engaging teaching methods and resources'
+          evidence_var: '#E2'
+        - id: 3
+          tool: llm
+          input: 'Create a lesson plan combining scientific accuracy (#E1) with engaging activities (#E2), including hands-on demonstrations and visual aids'
+          reasoning: 'Design comprehensive, engaging lesson plan'
+          evidence_var: '#E3'
+
+  # 15. STEM learning support
+  - - query: 'I need help understanding calculus derivatives. Can you explain it with real-world examples?'
+      actions:
+        - id: 1
+          tool: wikipedia
+          input: 'calculus derivatives applications'
+          reasoning: 'Get foundational mathematical concepts'
+          evidence_var: '#E1'
+        - id: 2
+          tool: llm
+          input: 'Explain derivatives using real-world examples from #E1, breaking down the concept step by step'
+          reasoning: 'Create accessible explanation with practical examples'
+          evidence_var: '#E2'
+        - id: 3
+          tool: calculator
+          input: 'derivative(x^2)'
+          reasoning: 'Provide concrete mathematical example'
+          evidence_var: '#E3'

@@ -1,126 +1,158 @@
-import { z } from 'zod';
-import { Plan, available_tools } from './planning.schema';
+// ~/src/PlanExecute/helpers.ts
+
+import { join } from 'path';
+import { load } from 'js-yaml';
+import { readFileSync } from 'fs';
+import Handlebars from 'handlebars';
+
+import { Plan, Solution, plan_schema, solution_schema } from './types';
+
+import type { ToolRegistry } from './types';
 
 /**
- * Formats a Zod error into a human-readable string
- * @param error The Zod error to format
- * @returns A formatted error message
+ * Load and parse YAML file
  */
-export function format_zod_error(error: z.ZodError): string {
-  let error_message = 'Validation failed with the following issues:\n\n';
-
-  error.errors.forEach((err) => {
-    const path = err.path.join('.');
-    error_message += `- ${path ? `Field "${path}": ` : ''}${err.message}\n`;
-  });
-
-  // Add schema information
-  error_message += '\n\nExpected schema:\n';
-  error_message += `- title: string - A concise title for the plan\n`;
-  error_message += `- steps: array of objects with:\n`;
-  error_message += `  - id: string or number - Step number\n`;
-  error_message += `  - description: string - What to do in this step\n`;
-  error_message += `  - tool: optional enum (${available_tools.join(
-    ', '
-  )}) - Tool to use for this step\n`;
-  error_message += `- goal: string - The original goal to accomplish\n`;
-
-  return error_message;
-}
-
-/**
- * Creates a safe plan for potentially problematic queries
- * @param goal The original goal
- * @returns A safe plan object
- */
-export function create_safe_plan(goal: string): Plan {
-  return {
-    title: 'Content Policy Compliance Plan',
-    steps: [
-      {
-        id: 1,
-        description: 'Acknowledge the request in a respectful manner',
-      },
-      {
-        id: 2,
-        description:
-          'Explain that the request cannot be processed due to content policy restrictions',
-      },
-      {
-        id: 3,
-        description:
-          'Suggest alternative approaches that comply with content policies',
-        tool: 'library_lookup',
-      },
-    ],
-    goal: 'Provide helpful assistance while maintaining content policy compliance',
-  };
-}
-
-/**
- * Simple template processor for Handlebars-style templates
- * @param template The template string with {{variable}} placeholders
- * @param variables Object containing variable values
- * @returns Processed string with variables replaced
- */
-export function process_template(
-  template: string,
-  variables: Record<string, any>
-): string {
-  let result = template;
-
-  // Process {{variable}} replacements
-  const simple_var_regex = /{{([^#\/][^}]*)}}/g;
-  result = result.replace(simple_var_regex, (match, variable) => {
-    const trimmed_var = variable.trim();
-
-    // Handle {{json object}} helper
-    if (trimmed_var.startsWith('json ')) {
-      const obj_name = trimmed_var.substring(5).trim();
-      const obj = get_nested_property(variables, obj_name);
-      return obj ? JSON.stringify(obj, null, 2) : match;
-    }
-
-    const value = get_nested_property(variables, trimmed_var);
-    return value !== undefined ? String(value) : match;
-  });
-
-  // Process {{#each array}}...{{/each}} blocks
-  const each_regex = /{{#each\s+([^}]+)}}([\s\S]*?){{\/each}}/g;
-  result = result.replace(each_regex, (match, array_path, block_content) => {
-    const array = get_nested_property(variables, array_path.trim());
-
-    if (!Array.isArray(array)) {
-      return '';
-    }
-
-    return array
-      .map((item) => {
-        // For each item in the array, process the block with the item as 'this'
-        return process_template(block_content, { ...variables, this: item });
-      })
-      .join('');
-  });
-
-  return result;
-}
-
-/**
- * Gets a nested property from an object using dot notation
- * @param obj The object to get the property from
- * @param path The path to the property using dot notation
- * @returns The property value or undefined if not found
- */
-function get_nested_property(obj: Record<string, any>, path: string): any {
-  const parts = path.split('.');
-  let current = obj;
-
-  for (const part of parts) {
-    if (current === undefined || current === null) {
-      return undefined;
-    }
-    current = current[part];
+const load_yaml = (file_path: string) => {
+  try {
+    const file_content = readFileSync(file_path, 'utf8');
+    return load(file_content) as { examples: Array<[Record<string, any>]> };
+  } catch (error) {
+    throw new Error(`Failed to load YAML file ${file_path}: ${error}`);
   }
+};
 
-  return current;
+/**
+ * Format plan examples as JSON strings matching plan_schema
+ */
+export const get_plan_examples = () => {
+  const examples = load_yaml(join(__dirname, 'plan.examples.yaml'));
+  return examples.examples
+    .map(([example]) => {
+      const plan: Plan = {
+        query: example.query,
+        actions: example.actions.map((action: any, index: number) => ({
+          id: action.id || index + 1,
+          tool: action.tool,
+          input: action.input,
+          reasoning: action.reasoning,
+          evidence_var: action.evidence_var || `#E${index + 1}`,
+        })),
+      };
+      return JSON.stringify(plan, null, 2);
+    })
+    .join('\n\n');
+};
+
+/**
+ * Format solution examples as JSON strings matching solution_schema
+ */
+export const get_solve_examples = () => {
+  const examples = load_yaml(join(__dirname, 'solve.examples.yaml'));
+  return examples.examples
+    .map(([example]) => {
+      const solution: Solution = {
+        query: example.query,
+        answer: example.answer,
+        reasoning: example.reasoning,
+      };
+      return JSON.stringify(solution, null, 2);
+    })
+    .join('\n\n');
+};
+
+// Handlebars templates for prompts
+const planner_template = Handlebars.compile(
+  `You are a helpful planner agent that creates step-by-step plans to solve user queries.
+For each step, specify:
+1. Your reasoning for the step
+2. The tool to use from the available tools
+3. The input for the tool
+4. A variable name to store the evidence in (#E1, #E2, etc.)
+
+Available tools:
+
+{{#each tools}}
+({{@index}}) {{this}}
+{{/each}}
+
+The plan should be detailed and account for all necessary steps to solve the query.
+If you think it makes sense, provide a little redundancy in your plan, by having multiple paths to the same end goal.
+
+Your output must be valid JSON conforming to this schema:
+
+{{{schema}}}
+
+Here are some example plans formatted as valid JSON:
+
+{{{examples}}}`
+);
+
+const solver_template = Handlebars.compile(
+  `You are a precise reasoning agent that creates clear, accurate solutions based on plans and evidence.
+You will receive:
+1. The original query
+2. A plan with reasoning steps
+3. Evidence collected from executing the plan
+
+Your task is to synthesize all information and provide the best possible answer to the query.
+Focus on accuracy and clarity, citing specific evidence where relevant.
+
+Your output must be valid JSON conforming to this schema:
+
+{{{schema}}}
+
+Here are some example solutions formatted as valid JSON:
+
+{{{examples}}}`
+);
+
+/**
+ * Get enhanced system prompts with examples
+ */
+export const get_enhanced_prompts = (tool_registry: ToolRegistry) => {
+  const plan_examples = get_plan_examples();
+  const solve_examples = get_solve_examples();
+
+  const tools = Object.values(tool_registry.get_all()).map(
+    (tool) => tool.description
+  );
+
+  return {
+    planner_prompt: planner_template({
+      tools,
+      schema: JSON.stringify(plan_schema.shape, null, 2),
+      examples: plan_examples,
+    }),
+
+    solver_prompt: solver_template({
+      schema: JSON.stringify(solution_schema.shape, null, 2),
+      examples: solve_examples,
+    }),
+  };
+};
+
+/**
+ * Sanitizes HTML content by removing HTML tags and decoding HTML entities
+ * Also cleans up Wikipedia-specific markup
+ */
+export function sanitize_html(html: string): string {
+  return (
+    html
+      // Remove HTML tags
+      .replace(/<\/?[^>]+(>|$)/g, '')
+      // Decode HTML entities
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      // Clean up Wikipedia specific markup
+      .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, '$2') // [[link|text]] -> text
+      .replace(/\[\[([^\]]*)\]\]/g, '$1') // [[text]] -> text
+      .replace(/''+/g, '') // Remove bold/italic markers
+      .replace(/\{\{([^}]*)\}\}/g, '') // Remove templates
+      // Clean up whitespace
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }

@@ -1,0 +1,75 @@
+examples:
+  # 1. Simple greeting example showing natural conversation
+  - - query: 'Hello! How are you?'
+      answer: "Hi! I'm doing well, thank you for asking. I'm happy to help you today!"
+      reasoning: 'Based on the LLM response, provided a friendly and natural greeting'
+
+  # 2. Basic factual query using Wikipedia
+  - - query: 'What is the capital of France?'
+      answer: 'Paris is the capital of France.'
+      reasoning: 'Wikipedia evidence directly confirmed Paris as the capital city'
+
+  # 3. Multi-step arithmetic problem
+  - - query: 'If I have 5 apples and eat 2, then buy 3 more, how many do I have?'
+      answer: 'You have 6 apples.'
+      reasoning: 'Calculated step by step: 5-2=3 apples after eating, then 3+3=6 after buying more'
+
+  # 4. Complex historical analysis combining multiple sources
+  - - query: 'What were the major impacts of the 2008 financial crisis?'
+      answer: 'The 2008 financial crisis had several major impacts including a global recession, widespread bank failures, housing market collapse, and increased unemployment. It led to stricter financial regulations and changed how risk is managed in the banking sector.'
+      reasoning: 'Combined Wikipedia overview with LLM analysis to identify key economic and regulatory impacts'
+
+  # 5. Multi-tool calculation with fact lookup
+  - - query: 'What is the square root of 144 plus the year Wikipedia was launched?'
+      answer: 'The result is 2013 (12 + 2001).'
+      reasoning: 'Calculated sqrt(144)=12, found Wikipedia launch year of 2001, then added them'
+
+  # 6. Temperature conversion calculation
+  - - query: 'Convert 98.6 degrees Fahrenheit to Celsius'
+      answer: '37 degrees Celsius'
+      reasoning: 'Applied F to C formula: (98.6-32)*5/9 = 37'
+
+  # 7. Technical comparison using multiple sources
+  - - query: 'What is quantum computing and how does it compare to classical computing?'
+      answer: 'Quantum computing uses quantum bits (qubits) and quantum mechanics principles like superposition and entanglement, unlike classical computing which uses binary bits. While classical computers process bits sequentially, quantum computers can process multiple states simultaneously, potentially solving certain problems exponentially faster.'
+      reasoning: 'Synthesized Wikipedia information on both computing types and LLM comparison analysis'
+
+  # 8. Percentage calculation with multiple steps
+  - - query: 'What is 15% of the sum of 245 and 155?'
+      answer: '60'
+      reasoning: 'First calculated 245+155=400, then found 15% of 400 = 60'
+
+  # 9. Historical impact analysis
+  - - query: 'How did the printing press impact medieval society?'
+      answer: "The printing press revolutionized medieval society by dramatically increasing literacy rates, enabling mass production of books, spreading religious texts and scientific knowledge, and contributing to the Renaissance and Reformation movements. It democratized information access and reduced the Church's control over written knowledge."
+      reasoning: 'Combined historical facts from Wikipedia with LLM analysis of societal impacts'
+
+  # 10. Financial calculation with explanation
+  - - query: 'If I invest $1000 with 8% annual interest compounded monthly for 5 years, how much will I have?'
+      answer: 'Your investment will grow to $1,489.35'
+      reasoning: 'Used compound interest formula A=P(1+r/n)^(nt) with P=1000, r=0.08, n=12, t=5 and provided explanation'
+
+  # 11. Scientific conversion
+  - - query: 'How many kilometers are in 100 miles?'
+      answer: '160.934 kilometers'
+      reasoning: 'Applied conversion formula: miles * 1.60934'
+
+  # 12. Current events analysis
+  - - query: 'What are the main causes of climate change?'
+      answer: 'The main causes of climate change include greenhouse gas emissions from burning fossil fuels, deforestation, industrial processes, and agricultural practices. These human activities increase atmospheric CO2 and other greenhouse gases, trapping heat and warming the planet.'
+      reasoning: 'Synthesized scientific data from multiple sources to explain key contributing factors'
+
+  # 13. Language translation with cultural context
+  - - query: 'What does "carpe diem" mean and how is it used?'
+      answer: '"Carpe diem" is a Latin phrase meaning "seize the day." It encourages living in the present and making the most of current opportunities rather than waiting for the future. The phrase is commonly used to motivate people to take action and embrace life''s opportunities.'
+      reasoning: 'Combined literal translation with cultural and practical usage context'
+
+  # 14. Mathematical word problem
+  - - query: 'If a train travels at 60 mph for 2.5 hours, how far does it go?'
+      answer: '150 miles'
+      reasoning: 'Calculated distance using speed * time formula: 60 mph * 2.5 hours = 150 miles'
+
+  # 15. Historical figure analysis
+  - - query: "What were Albert Einstein's major contributions to physics?"
+      answer: 'Einstein revolutionized physics with several groundbreaking contributions: the theory of relativity (both special and general), the photoelectric effect explanation, and E=mc². His work fundamentally changed our understanding of space, time, gravity, and the relationship between matter and energy.'
+      reasoning: 'Synthesized biographical information and scientific achievements from authoritative sources'

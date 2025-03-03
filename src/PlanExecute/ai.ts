@@ -105,7 +105,7 @@ export class AiGenerate {
     };
   }
 
-  protected async get_completion(
+  public async get_completion(
     messages: ChatCompletionMessageParam[],
     response_format?: ChatCompletionCreateParamsBase['response_format'],
     callbacks?: AiCallbacks
