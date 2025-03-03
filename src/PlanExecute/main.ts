@@ -37,7 +37,7 @@ async function main() {
       max_execution_time_ms: 5000,
     });
 
-    const solver = new Solver(ai_config, tool_registry);
+    const solver = new Solver(ai_config);
 
     // Create ReWOO instance
     const rewoo = new ReWOO(planner, worker, solver);

@@ -107,28 +107,31 @@ Here are some example solutions formatted as valid JSON:
 );
 
 /**
- * Get enhanced system prompts with examples
+ * Get planner system prompt with tool descriptions and examples
  */
-export const get_enhanced_prompts = (tool_registry: ToolRegistry) => {
+export const get_planner_prompt = (tool_registry: ToolRegistry): string => {
   const plan_examples = get_plan_examples();
-  const solve_examples = get_solve_examples();
-
   const tools = Object.values(tool_registry.get_all()).map(
     (tool) => tool.description
   );
 
-  return {
-    planner_prompt: planner_template({
-      tools,
-      schema: JSON.stringify(plan_schema.shape, null, 2),
-      examples: plan_examples,
-    }),
+  return planner_template({
+    tools,
+    schema: JSON.stringify(plan_schema.shape, null, 2),
+    examples: plan_examples,
+  });
+};
 
-    solver_prompt: solver_template({
-      schema: JSON.stringify(solution_schema.shape, null, 2),
-      examples: solve_examples,
-    }),
-  };
+/**
+ * Get solver system prompt with examples
+ */
+export const get_solver_prompt = (): string => {
+  const solve_examples = get_solve_examples();
+
+  return solver_template({
+    schema: JSON.stringify(solution_schema.shape, null, 2),
+    examples: solve_examples,
+  });
 };
 
 /**

@@ -1,7 +1,7 @@
 // ~/src/PlanExecute/rewoo.agent.ts
 
 import { BaseAgent, type AgentConfig } from './base.agent';
-import { get_enhanced_prompts } from './helpers';
+import { get_planner_prompt, get_solver_prompt } from './helpers';
 
 import type { AiCallbacks } from './ai';
 import type { ChatCompletion } from 'openai/resources/chat/completions';
@@ -14,10 +14,9 @@ import type { ToolDefinition, ToolRegistry, ExecutionState } from './types';
  */
 export class Planner extends BaseAgent {
   constructor(config: AgentConfig, tool_registry: ToolRegistry) {
-    const { planner_prompt } = get_enhanced_prompts(tool_registry);
     super({
       ...config,
-      system_prompt: config.system_prompt || planner_prompt,
+      system_prompt: config.system_prompt || get_planner_prompt(tool_registry),
     });
   }
 
@@ -204,11 +203,10 @@ export class Worker {
  * The Solver class combines the plan and evidence to create a solution
  */
 export class Solver extends BaseAgent {
-  constructor(config: AgentConfig, tool_registry: ToolRegistry) {
-    const { solver_prompt } = get_enhanced_prompts(tool_registry);
+  constructor(config: AgentConfig) {
     super({
       ...config,
-      system_prompt: config.system_prompt || solver_prompt,
+      system_prompt: config.system_prompt || get_solver_prompt(),
     });
   }
 
