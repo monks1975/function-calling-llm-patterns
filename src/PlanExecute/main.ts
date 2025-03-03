@@ -43,7 +43,7 @@ async function main() {
     const rewoo = new ReWOO(planner, worker, solver);
 
     // Test query that uses calculator
-    const query = `Research into this meme called "Six Degrees of Kevin Bacon". Then tell me about the charity that Kevin Bacon is involved with of that name.`;
+    const query = `What is considered the worst Beatles song and why is it Mr Moonlight?`;
     console.log('Processing query:', query);
 
     // Process the query

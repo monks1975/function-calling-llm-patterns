@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { BaseAgent, AgentConfig } from './base.agent';
+import { AiCallbacks } from './ai';
 
 // Available tools for the Worker to use
 export const available_tools = ['web_search', 'calculator'] as const;
@@ -37,6 +38,13 @@ export const evidence_schema = z.object({
   status: z.enum(['success', 'error']).describe('Execution status'),
   data: z.any().optional().describe('Result data from the action'),
   error: z.string().optional().describe('Error message if status is error'),
+  tokens: z
+    .object({
+      prompt_tokens: z.number(),
+      completion_tokens: z.number(),
+      total_tokens: z.number(),
+    })
+    .optional(),
 });
 
 // Solution schema - final answer combining plan and evidence
@@ -71,6 +79,11 @@ export interface ToolResult {
   status: 'success' | 'error';
   data?: any;
   error?: string;
+  tokens?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 export interface ToolDefinition {
@@ -105,6 +118,12 @@ export interface ExecutionState {
   solution: Solution | null;
   start_time: number;
   end_time?: number;
+  duration_seconds?: number;
+  tokens: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
   logs: ExecutionLog[];
 }
 
@@ -135,7 +154,8 @@ export interface SolverInterface {
   create_solution: (
     query: string,
     plan: Plan,
-    evidence_map: Record<string, Evidence>
+    evidence_map: Record<string, Evidence>,
+    callbacks?: AiCallbacks
   ) => Promise<Solution>;
 }
 
@@ -177,7 +197,8 @@ export class Solver extends BaseAgent implements SolverInterface {
   async create_solution(
     query: string,
     plan: Plan,
-    evidence_map: Record<string, Evidence>
+    evidence_map: Record<string, Evidence>,
+    callbacks?: AiCallbacks
   ): Promise<Solution> {
     throw new Error('Not implemented');
   }
@@ -205,6 +226,11 @@ export class ReWOO {
       evidence_map: {},
       solution: null,
       start_time: Date.now(),
+      tokens: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
       logs: [],
     };
   }

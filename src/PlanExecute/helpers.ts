@@ -88,7 +88,7 @@ Here are some example plans formatted as valid JSON:
 );
 
 const solver_template = Handlebars.compile(
-  `You are a precise reasoning agent that creates clear, accurate solutions based on plans and evidence.
+  `You are a precise reasoning agent that produces clear, accurate solutions based on plans and evidence.
 You will receive:
 1. The original query
 2. A plan with reasoning steps

@@ -1,9 +1,12 @@
 // ~/src/PlanExecute/rewoo.agent.ts
 
-import { BaseAgent, AgentConfig } from './base.agent';
-import { Plan, Evidence, Solution, Action, ToolDefinition } from './types';
+import { BaseAgent, type AgentConfig } from './base.agent';
 import { get_enhanced_prompts } from './helpers';
-import { ToolRegistry } from './types';
+
+import type { AiCallbacks } from './ai';
+import type { ChatCompletion } from 'openai/resources/chat/completions';
+import type { Plan, Evidence, Solution, Action } from './types';
+import type { ToolDefinition, ToolRegistry, ExecutionState } from './types';
 
 /**
  * The Planner class is responsible for creating a plan based on a query.
@@ -21,9 +24,10 @@ export class Planner extends BaseAgent {
   /**
    * Create a plan for the given query
    * @param query The user's query to plan for
+   * @param callbacks Optional callbacks for monitoring the process
    * @returns A Plan object with actions to execute
    */
-  async create_plan(query: string): Promise<Plan> {
+  async create_plan(query: string, callbacks?: AiCallbacks): Promise<Plan> {
     try {
       // Clear any previous conversation except system prompt
       this.reset_messages();
@@ -34,7 +38,7 @@ export class Planner extends BaseAgent {
       );
 
       // Get completion formatted as JSON
-      const plan_json = await this.get_json_completion();
+      const plan_json = await this.get_json_completion(callbacks);
 
       // Parse the JSON response with retries
       const plan_obj = await this.parse_json_with_retries<any>(
@@ -152,6 +156,11 @@ export class Worker {
 
       if (result.status === 'success') {
         evidence.data = result.data;
+
+        // Store token usage if using an LLM tool
+        if (result.tokens) {
+          evidence.tokens = result.tokens;
+        }
       } else {
         evidence.error = result.error || 'Unknown error occurred';
       }
@@ -213,7 +222,8 @@ export class Solver extends BaseAgent {
   async create_solution(
     query: string,
     plan: Plan,
-    evidence_map: Record<string, Evidence>
+    evidence_map: Record<string, Evidence>,
+    callbacks?: AiCallbacks
   ): Promise<Solution> {
     try {
       // Clear any previous conversation except system prompt
@@ -226,7 +236,7 @@ export class Solver extends BaseAgent {
       this.add_user_message(formatted_context);
 
       // Get completion formatted as JSON
-      const solution_json = await this.get_json_completion();
+      const solution_json = await this.get_json_completion(callbacks);
 
       // Parse the JSON response with retries
       const solution_obj = await this.parse_json_with_retries<any>(
@@ -311,22 +321,7 @@ export class ReWOO {
   private planner: Planner;
   private worker: Worker;
   private solver: Solver;
-  private state: {
-    query: string;
-    plan: Plan | null;
-    current_action_index: number;
-    evidence_map: Record<string, Evidence>;
-    solution: Solution | null;
-    start_time: number;
-    end_time?: number;
-    logs: Array<{
-      timestamp: number;
-      level: 'debug' | 'info' | 'warn' | 'error';
-      message: string;
-      data?: any;
-      component?: 'planner' | 'worker' | 'solver' | 'system';
-    }>;
-  };
+  private state: ExecutionState;
 
   constructor(planner: Planner, worker: Worker, solver: Solver) {
     this.planner = planner;
@@ -339,6 +334,11 @@ export class ReWOO {
       evidence_map: {},
       solution: null,
       start_time: Date.now(),
+      tokens: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
       logs: [],
     };
   }
@@ -358,7 +358,16 @@ export class ReWOO {
     try {
       // 1. Create plan
       this.log('info', 'Creating plan', undefined, 'planner');
-      this.state.plan = await this.planner.create_plan(query);
+      this.state.plan = await this.planner.create_plan(query, {
+        onCompletion: (completion: ChatCompletion) => {
+          if (completion.usage) {
+            this.state.tokens.prompt_tokens += completion.usage.prompt_tokens;
+            this.state.tokens.completion_tokens +=
+              completion.usage.completion_tokens;
+            this.state.tokens.total_tokens += completion.usage.total_tokens;
+          }
+        },
+      });
       this.log('info', 'Plan created', { plan: this.state.plan }, 'planner');
 
       // 2. Execute each action in sequence
@@ -382,6 +391,14 @@ export class ReWOO {
         // Store the evidence
         this.state.evidence_map[action.evidence_var] = evidence;
 
+        // Accumulate token usage from tools
+        if (evidence.tokens) {
+          this.state.tokens.prompt_tokens += evidence.tokens.prompt_tokens;
+          this.state.tokens.completion_tokens +=
+            evidence.tokens.completion_tokens;
+          this.state.tokens.total_tokens += evidence.tokens.total_tokens;
+        }
+
         this.log(
           evidence.status === 'success' ? 'info' : 'error',
           `Action ${i + 1} ${evidence.status}`,
@@ -395,7 +412,17 @@ export class ReWOO {
       this.state.solution = await this.solver.create_solution(
         query,
         this.state.plan,
-        this.state.evidence_map
+        this.state.evidence_map,
+        {
+          onCompletion: (completion: ChatCompletion) => {
+            if (completion.usage) {
+              this.state.tokens.prompt_tokens += completion.usage.prompt_tokens;
+              this.state.tokens.completion_tokens +=
+                completion.usage.completion_tokens;
+              this.state.tokens.total_tokens += completion.usage.total_tokens;
+            }
+          },
+        }
       );
 
       this.log(
@@ -425,7 +452,13 @@ export class ReWOO {
    * Get the current state of the ReWOO process
    */
   get_state() {
-    return { ...this.state };
+    const state = { ...this.state };
+    if (state.end_time) {
+      state.duration_seconds = Number(
+        ((state.end_time - state.start_time) / 1000).toFixed(2)
+      );
+    }
+    return state;
   }
 
   /**

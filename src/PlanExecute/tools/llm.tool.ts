@@ -48,17 +48,33 @@ export class LlmTool extends BaseTool {
 
       this.ai_client.add_message({ role: 'user', content: params });
 
+      let token_usage = {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      };
+
       const response = await this.ai_client.get_completion(
         this.ai_client.get_messages(),
         undefined,
         {
           onRetry: (notification) => console.warn('LLM retry:', notification),
+          onCompletion: (completion) => {
+            if (completion.usage) {
+              token_usage = {
+                prompt_tokens: completion.usage.prompt_tokens,
+                completion_tokens: completion.usage.completion_tokens,
+                total_tokens: completion.usage.total_tokens,
+              };
+            }
+          },
         }
       );
 
       return {
         status: 'success',
         data: response,
+        tokens: token_usage,
       };
     } catch (error) {
       return {
