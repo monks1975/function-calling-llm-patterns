@@ -52,9 +52,7 @@ const get_plan_examples = (tool_name: string): Plan[] => {
  * Format solution examples as JSON strings matching solution_schema
  */
 export const get_solve_examples = () => {
-  const examples = load_yaml(
-    join(__dirname, 'examples', 'solve.examples.yaml')
-  );
+  const examples = load_yaml(join(__dirname, 'examples', 'solve.yaml'));
   return examples.examples
     .map(([example]) => {
       const solution: Solution = {
