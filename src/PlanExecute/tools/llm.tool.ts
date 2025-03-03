@@ -32,7 +32,7 @@ export class LlmTool extends BaseTool {
 
   private ai_client: AiGenerate;
   private readonly system_prompt =
-    'You are a helpful assistant that is able to consolidate and synthesize information from multiple sources, maintaining a high factual accuracy. The material given to you is your sole source of knowledge, and you should use it to answer the question fully and accurately.';
+    'You are a helpful assistant that is able to consolidate and synthesize information from multiple sources, maintaining a high factual accuracy.';
 
   constructor() {
     super();

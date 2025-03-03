@@ -15,9 +15,10 @@ type CalculatorInput = z.infer<typeof calculator_schema>;
  */
 export class CalculatorTool extends BaseTool {
   name = 'calculator';
-  description =
-    'Calculator[input]: Perform mathematical calculations. Input should be a simple, string-based mathematical expression compatible with mathjs.';
-  schema = calculator_schema;
+  description = 'A tool for calculating mathematical expressions';
+  schema = z.object({
+    expression: z.string().describe('The mathematical expression to evaluate'),
+  });
   required_params = ['expression'];
 
   private normalize_expression(expr: string): string {

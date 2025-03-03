@@ -1,0 +1,160 @@
+# ~/src/PlanExecute/tools/examples/google.yaml
+
+examples:
+  # Example 1: Latest renewable energy technology
+  - - query: 'What are the latest developments in renewable energy technology?'
+      actions:
+        - tool: google
+          input:
+            { query: 'latest renewable energy technology breakthroughs 2024' }
+          reasoning: 'Search for current developments in renewable energy'
+          evidence_var: '#E1'
+        - tool: llm
+          input: 'Analyze and summarize the key renewable energy developments from #E1'
+          reasoning: 'Synthesize search results into a coherent summary'
+          evidence_var: '#E2'
+
+  # Example 2: Leaking faucet repair
+  - - query: 'How do I fix a leaking faucet?'
+      actions:
+        - tool: google
+          input: { query: 'how to fix leaking faucet step by step guide' }
+          reasoning: 'Find detailed repair instructions for leaking faucets'
+          evidence_var: '#E1'
+        - tool: llm
+          input: 'Create a clear step-by-step guide from the search results in #E1'
+          reasoning: 'Convert search results into actionable instructions'
+          evidence_var: '#E2'
+
+  # Example 3: Python programming resources
+  - - query: "What's the best way to learn Python programming?"
+      actions:
+        - tool: google
+          input:
+            { query: 'best resources learn Python programming beginners 2024' }
+          reasoning: 'Find current recommended resources for learning Python'
+          evidence_var: '#E1'
+        - tool: llm
+          input: 'Create a structured learning path based on the resources found in #E1'
+          reasoning: 'Organize search results into a learning roadmap'
+          evidence_var: '#E2'
+
+  # Example 4: Local restaurant recommendations
+  - - query: 'Where can I find good Italian food in New York City?'
+      actions:
+        - tool: google
+          input: { query: 'Italian restaurants in New York City' }
+          reasoning: 'Find reputable Italian restaurants in New York City'
+          evidence_var: '#E1'
+        - tool: llm
+          input: 'Summarize the top recommendations from #E1'
+          reasoning: 'Create a concise list of Italian restaurants in New York City'
+          evidence_var: '#E2'
+
+  # Example 5: Product price comparison
+  - - query: "What's the best price for a new laptop?"
+      actions:
+        - tool: google
+          input: { query: 'best price laptop recent reviews' }
+          reasoning: 'Find current best prices for laptops'
+          evidence_var: '#E1'
+        - tool: llm
+          input: 'Summarize the top recommendations from #E1'
+          reasoning: 'Create a concise list of Italian restaurants in New York City'
+          evidence_var: '#E2'
+
+  # Example 6: Research paper writing help
+  - - query: 'Help me write a research paper on renewable energy'
+      actions:
+        - tool: llm
+          input: 'Create an outline for a research paper on renewable energy'
+          reasoning: 'Generate initial paper structure'
+          evidence_var: '#E1'
+        - tool: google
+          input:
+            {
+              query: 'latest renewable energy research statistics studies 2024',
+            }
+          reasoning: 'Find current research and data'
+          evidence_var: '#E2'
+        - tool: llm
+          input: 'Integrate research findings from #E2 into outline #E1'
+          reasoning: 'Combine outline with research'
+          evidence_var: '#E3'
+
+  # Example 7: Travel planning assistance
+  - - query: 'Plan a 2-week trip to Japan'
+      actions:
+        - tool: llm
+          input: 'Create initial travel categories to research for Japan trip'
+          reasoning: 'Define research areas'
+          evidence_var: '#E1'
+        - tool: google
+          input: { query: 'japan travel itinerary 2 weeks best places' }
+          reasoning: 'Research recommended itineraries'
+          evidence_var: '#E2'
+        - tool: google
+          input: { query: 'japan accommodation transportation costs 2024' }
+          reasoning: 'Find logistics information'
+          evidence_var: '#E3'
+        - tool: llm
+          input: 'Create detailed travel plan using #E1 categories with info from #E2 and #E3'
+          reasoning: 'Synthesize into complete itinerary'
+          evidence_var: '#E4'
+
+  # Example 8: Home renovation cost estimation
+  - - query: 'How much would it cost to renovate my kitchen?'
+      actions:
+        - tool: llm
+          input: 'List main kitchen renovation components to research'
+          reasoning: 'Break down renovation elements'
+          evidence_var: '#E1'
+        - tool: google
+          input: { query: 'average kitchen renovation costs 2024 breakdown' }
+          reasoning: 'Find current cost data'
+          evidence_var: '#E2'
+        - tool: llm
+          input: 'Create itemized cost estimate using components #E1 and prices from #E2'
+          reasoning: 'Generate detailed estimate'
+          evidence_var: '#E3'
+
+  # Example 9: Career transition research
+  - - query: 'How do I switch to a career in data science?'
+      actions:
+        - tool: llm
+          input: 'Outline key requirements for data science career transition'
+          reasoning: 'Identify transition needs'
+          evidence_var: '#E1'
+        - tool: google
+          input:
+            {
+              query: 'data science career transition requirements certification courses',
+            }
+          reasoning: 'Research transition paths'
+          evidence_var: '#E2'
+        - tool: llm
+          input: 'Create career transition roadmap using requirements #E1 and resources #E2'
+          reasoning: 'Build actionable plan'
+          evidence_var: '#E3'
+
+  # Example 10: Health condition research
+  - - query: 'What are the best treatments for chronic back pain?'
+      actions:
+        - tool: llm
+          input: 'List categories of back pain treatments to research'
+          reasoning: 'Define research areas'
+          evidence_var: '#E1'
+        - tool: google
+          input:
+            { query: 'evidence based chronic back pain treatments research' }
+          reasoning: 'Find medical research'
+          evidence_var: '#E2'
+        - tool: google
+          input:
+            { query: 'back pain treatment effectiveness studies comparison' }
+          reasoning: 'Research treatment outcomes'
+          evidence_var: '#E3'
+        - tool: llm
+          input: 'Summarize treatment options and effectiveness using #E1 categories and research from #E2 and #E3'
+          reasoning: 'Create treatment overview'
+          evidence_var: '#E4'

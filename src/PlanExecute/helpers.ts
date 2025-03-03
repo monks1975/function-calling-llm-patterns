@@ -22,32 +22,39 @@ const load_yaml = (file_path: string) => {
 };
 
 /**
- * Format plan examples as JSON strings matching plan_schema
+ * Load and parse tool-specific YAML plan examples
  */
-export const get_plan_examples = () => {
-  const examples = load_yaml(join(__dirname, 'plan.examples.yaml'));
-  return examples.examples
-    .map(([example]) => {
-      const plan: Plan = {
-        query: example.query,
-        actions: example.actions.map((action: any, index: number) => ({
-          id: action.id || index + 1,
-          tool: action.tool,
-          input: action.input,
-          reasoning: action.reasoning,
-          evidence_var: action.evidence_var || `#E${index + 1}`,
-        })),
-      };
-      return JSON.stringify(plan, null, 2);
-    })
-    .join('\n\n');
+const get_plan_examples = (tool_name: string): Plan[] => {
+  try {
+    const file_path = join(__dirname, 'examples', `${tool_name}.yaml`);
+    const file_content = readFileSync(file_path, 'utf8');
+    const data = load(file_content) as {
+      examples: Array<[Record<string, any>]>;
+    };
+
+    return data.examples.map(([example]) => ({
+      query: example.query,
+      actions: example.actions.map((action: any, index: number) => ({
+        id: action.id || index + 1,
+        tool: action.tool,
+        input: action.input,
+        reasoning: action.reasoning,
+        evidence_var: action.evidence_var || `#E${index + 1}`,
+      })),
+    })) as Plan[];
+  } catch (error) {
+    console.warn(`No examples found for tool ${tool_name}`);
+    return [];
+  }
 };
 
 /**
  * Format solution examples as JSON strings matching solution_schema
  */
 export const get_solve_examples = () => {
-  const examples = load_yaml(join(__dirname, 'solve.examples.yaml'));
+  const examples = load_yaml(
+    join(__dirname, 'examples', 'solve.examples.yaml')
+  );
   return examples.examples
     .map(([example]) => {
       const solution: Solution = {
@@ -75,7 +82,7 @@ Available tools:
 ({{@index}}) {{this}}
 {{/each}}
 
-The plan should be detailed and account for all necessary steps to solve the query.
+The plan should be accurate and account for all necessary steps to solve the query.
 If you think it makes sense, provide a little redundancy in your plan, by having multiple paths to the same end goal.
 
 Your output must be valid JSON conforming to this schema:
@@ -84,7 +91,8 @@ Your output must be valid JSON conforming to this schema:
 
 Here are some example plans formatted as valid JSON:
 
-{{{examples}}}`
+{{{examples}}}
+`
 );
 
 const solver_template = Handlebars.compile(
@@ -110,15 +118,19 @@ Here are some example solutions formatted as valid JSON:
  * Get planner system prompt with tool descriptions and examples
  */
 export const get_planner_prompt = (tool_registry: ToolRegistry): string => {
-  const plan_examples = get_plan_examples();
-  const tools = Object.values(tool_registry.get_all()).map(
-    (tool) => tool.description
-  );
+  const tools = Object.values(tool_registry.get_all());
+  const tool_descriptions = tools.map((tool) => tool.description);
+
+  // Collect and format examples from registered tools
+  const formatted_examples = tools
+    .flatMap((tool) => get_plan_examples(tool.name))
+    .map((example) => JSON.stringify(example, null, 2))
+    .join('\n\n');
 
   return planner_template({
-    tools,
+    tools: tool_descriptions,
     schema: JSON.stringify(plan_schema.shape, null, 2),
-    examples: plan_examples,
+    examples: formatted_examples,
   });
 };
 
