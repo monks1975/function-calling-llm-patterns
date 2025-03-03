@@ -146,7 +146,7 @@ export const get_planner_prompt = (tool_registry: ToolRegistry): string => {
     examples: formatted_examples,
   });
 
-  console.log(planner_prompt);
+  // console.log(planner_prompt);
 
   return planner_prompt;
 };
