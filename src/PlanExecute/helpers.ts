@@ -3,6 +3,7 @@
 import { join } from 'path';
 import { load } from 'js-yaml';
 import { readFileSync } from 'fs';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import Handlebars from 'handlebars';
 
 import { Plan, Solution, plan_schema, solution_schema } from './types';
@@ -69,6 +70,7 @@ export const get_solve_examples = () => {
 const planner_template = Handlebars.compile(
   `You are a helpful planner agent that creates step-by-step plans to solve user queries.
 For each step, specify:
+
 1. Your reasoning for the step
 2. The tool to use from the available tools
 3. The input for the tool
@@ -77,7 +79,10 @@ For each step, specify:
 Available tools:
 
 {{#each tools}}
-({{@index}}) {{this}}
+Tool: {{@key}}
+Description: {{this.description}}
+Input Schema: {{{this.schema}}}
+
 {{/each}}
 
 The plan should be accurate and account for all necessary steps to solve the query.
@@ -116,20 +121,34 @@ Here are some example solutions formatted as valid JSON:
  * Get planner system prompt with tool descriptions and examples
  */
 export const get_planner_prompt = (tool_registry: ToolRegistry): string => {
-  const tools = Object.values(tool_registry.get_all());
-  const tool_descriptions = tools.map((tool) => tool.description);
+  const tools = tool_registry.get_all();
+
+  const tool_descriptions = Object.entries(tools).reduce(
+    (acc, [name, tool]) => {
+      acc[name] = {
+        description: tool.description,
+        schema: JSON.stringify(zodToJsonSchema(tool.schema), null, 2),
+      };
+      return acc;
+    },
+    {} as Record<string, { description: string; schema: string }>
+  );
 
   // Collect and format examples from registered tools
-  const formatted_examples = tools
+  const formatted_examples = Object.values(tools)
     .flatMap((tool) => get_plan_examples(tool.name))
     .map((example) => JSON.stringify(example, null, 2))
     .join('\n\n');
 
-  return planner_template({
+  const planner_prompt = planner_template({
     tools: tool_descriptions,
-    schema: JSON.stringify(plan_schema.shape, null, 2),
+    schema: JSON.stringify(zodToJsonSchema(plan_schema), null, 2),
     examples: formatted_examples,
   });
+
+  console.log(planner_prompt);
+
+  return planner_prompt;
 };
 
 /**

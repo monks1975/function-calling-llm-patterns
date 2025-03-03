@@ -5,15 +5,12 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { BaseAgent, AgentConfig } from './base.agent';
 import { AiCallbacks } from './ai';
 
-// Available tools for the Worker to use
-export const available_tools = ['web_search', 'calculator'] as const;
-
 // ==================== ReWOO Core Types ====================
 
 // Action schema - represents a single action in the plan with variable substitution
 export const action_schema = z.object({
   id: z.number().describe('Action sequence number'),
-  tool: z.enum(available_tools).describe('Tool to use for this action'),
+  tool: z.string().describe('Tool to use for this action'),
   input: z
     .string()
     .describe('Input for the tool, may contain variable references'),

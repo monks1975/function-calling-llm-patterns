@@ -1,8 +1,8 @@
 // ~/src/PlanExecute/tools/google.tool.ts
 
-import dotenv from 'dotenv';
 import { BaseTool } from './base.tool';
 import { z } from 'zod';
+import dotenv from 'dotenv';
 
 import type { ToolResult } from '../types';
 
@@ -11,7 +11,7 @@ dotenv.config();
 // Define input schema
 const search_schema = z
   .string()
-  .min(1, 'Search query is required')
+  .min(1, 'Input is required')
   .describe('Search query');
 
 type WebSearchInput = string;
@@ -21,10 +21,8 @@ type WebSearchInput = string;
  */
 export class GoogleTool extends BaseTool {
   name = 'google';
-  description =
-    'Google[input]: Search the web for practical, up-to-date information. Input should be a search query.';
+  description = 'Search the open web for practical, up-to-date information.';
   schema = search_schema;
-  required_params = ['query'];
 
   protected async execute_validated(
     query: WebSearchInput

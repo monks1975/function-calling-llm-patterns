@@ -6,7 +6,10 @@ import * as math from 'mathjs';
 import { BaseTool } from './base.tool';
 
 // Define input schema to only accept string
-const calculator_schema = z.string().min(1, 'Expression is required');
+const calculator_schema = z
+  .string()
+  .min(1, 'Input is required')
+  .describe('Calculator expression input');
 
 type CalculatorInput = z.infer<typeof calculator_schema>;
 
@@ -15,11 +18,8 @@ type CalculatorInput = z.infer<typeof calculator_schema>;
  */
 export class CalculatorTool extends BaseTool {
   name = 'calculator';
-  description = 'A tool for calculating mathematical expressions';
-  schema = z.object({
-    expression: z.string().describe('The mathematical expression to evaluate'),
-  });
-  required_params = ['expression'];
+  description = 'Calculate mathematical expressions using mathjs';
+  schema = calculator_schema;
 
   private normalize_expression(expr: string): string {
     return (

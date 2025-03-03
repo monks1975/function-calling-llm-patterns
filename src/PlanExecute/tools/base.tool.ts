@@ -31,7 +31,6 @@ export abstract class BaseTool implements ToolDefinition {
   abstract name: string;
   abstract description: string;
   abstract schema: z.ZodType<any>;
-  abstract required_params?: string[];
 
   /**
    * Template method for tool execution with validation

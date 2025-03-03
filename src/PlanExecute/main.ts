@@ -8,23 +8,22 @@ import { Planner, Worker, Solver, ReWOO } from './rewoo.agent';
 import { calculator } from './tools/calculator.tool';
 import { llm } from './tools/llm.tool';
 import { google } from './tools/google.tool';
-import { wikipedia } from './tools/wikipedia.tool';
 import { DefaultToolRegistry } from './tool.registry';
 
 dotenv.config();
 
 // Basic AI configuration
 const ai_config = {
-  api_key: process.env.GROQ_API_KEY || '',
-  base_url: 'https://api.groq.com/openai/v1',
-  model: 'llama-3.3-70b-versatile',
+  api_key: process.env.TOGETHER_API_KEY || '',
+  base_url: 'https://api.together.xyz/v1',
+  model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
   temperature: 0.5,
 };
 
 async function main() {
   try {
     // Set up tools and registry
-    const tools = { calculator, google, llm, wikipedia };
+    const tools = { calculator, google, llm };
     const tool_registry = new DefaultToolRegistry();
     Object.values(tools).forEach((tool) => tool_registry.register(tool));
 
@@ -43,7 +42,7 @@ async function main() {
     const rewoo = new ReWOO(planner, worker, solver);
 
     // Test query that uses calculator
-    const query = `What is considered the worst Beatles song and why is it Mr Moonlight?`;
+    const query = `Hello, how are you?`;
     console.log('Processing query:', query);
 
     // Process the query

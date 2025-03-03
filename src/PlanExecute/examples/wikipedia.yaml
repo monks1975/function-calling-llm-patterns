@@ -5,11 +5,11 @@ examples:
   - - query: 'What is quantum computing and how does it differ from classical computing?'
       actions:
         - tool: wikipedia
-          input: { query: 'quantum computing' }
+          input: 'quantum computing'
           reasoning: 'Get foundational information about quantum computing'
           evidence_var: '#E1'
         - tool: wikipedia
-          input: { query: 'classical computing' }
+          input: 'classical computing'
           reasoning: 'Get information about classical computing for comparison'
           evidence_var: '#E2'
         - tool: llm
@@ -21,7 +21,7 @@ examples:
   - - query: 'Who was Marie Curie and what were her major contributions to science?'
       actions:
         - tool: wikipedia
-          input: { query: 'Marie Curie' }
+          input: 'Marie Curie'
           reasoning: 'Get biographical information and scientific contributions'
           evidence_var: '#E1'
         - tool: llm
@@ -33,11 +33,11 @@ examples:
   - - query: 'How did the Industrial Revolution change society?'
       actions:
         - tool: wikipedia
-          input: { query: 'Industrial Revolution social effects' }
+          input: 'Industrial Revolution social effects'
           reasoning: 'Research the societal impacts of industrialization'
           evidence_var: '#E1'
         - tool: wikipedia
-          input: { query: 'Industrial Revolution economic effects' }
+          input: 'Industrial Revolution economic effects'
           reasoning: 'Research the economic changes from industrialization'
           evidence_var: '#E2'
         - tool: llm
@@ -49,11 +49,11 @@ examples:
   - - query: 'What were the causes and effects of the French Revolution?'
       actions:
         - tool: wikipedia
-          input: { query: 'Causes of the French Revolution' }
+          input: 'Causes of the French Revolution'
           reasoning: 'Research the key factors leading to the revolution'
           evidence_var: '#E1'
         - tool: wikipedia
-          input: { query: 'Aftermath of the French Revolution' }
+          input: 'Aftermath of the French Revolution'
           reasoning: 'Research the impacts and outcomes'
           evidence_var: '#E2'
         - tool: llm
@@ -65,7 +65,7 @@ examples:
   - - query: 'Explain how photosynthesis works and why it is important'
       actions:
         - tool: wikipedia
-          input: { query: 'photosynthesis process' }
+          input: 'photosynthesis process'
           reasoning: 'Get technical details of photosynthesis'
           evidence_var: '#E1'
         - tool: llm
@@ -73,7 +73,7 @@ examples:
           reasoning: 'Create accessible explanation'
           evidence_var: '#E2'
         - tool: wikipedia
-          input: { query: 'importance of photosynthesis' }
+          input: 'importance of photosynthesis'
           reasoning: 'Research ecological significance'
           evidence_var: '#E3'
 
@@ -81,11 +81,11 @@ examples:
   - - query: 'Compare Ancient Greek and Roman mythology'
       actions:
         - tool: wikipedia
-          input: { query: 'Greek mythology' }
+          input: 'Greek mythology'
           reasoning: 'Research Greek mythological system'
           evidence_var: '#E1'
         - tool: wikipedia
-          input: { query: 'Roman mythology' }
+          input: 'Roman mythology'
           reasoning: 'Research Roman mythological system'
           evidence_var: '#E2'
         - tool: llm
@@ -101,11 +101,11 @@ examples:
           reasoning: 'Create research framework'
           evidence_var: '#E1'
         - tool: wikipedia
-          input: { query: 'History of artificial intelligence' }
+          input: 'History of artificial intelligence'
           reasoning: 'Get historical timeline'
           evidence_var: '#E2'
         - tool: wikipedia
-          input: { query: 'Applications of artificial intelligence' }
+          input: 'Applications of artificial intelligence'
           reasoning: 'Research modern applications'
           evidence_var: '#E3'
 
@@ -113,7 +113,7 @@ examples:
   - - query: 'What are the effects of climate change on marine ecosystems?'
       actions:
         - tool: wikipedia
-          input: { query: 'Effects of climate change on marine ecosystems' }
+          input: 'Effects of climate change on marine ecosystems'
           reasoning: 'Get overview of marine impacts'
           evidence_var: '#E1'
         - tool: llm
@@ -121,6 +121,6 @@ examples:
           reasoning: 'Extract main impact categories'
           evidence_var: '#E2'
         - tool: wikipedia
-          input: { query: 'Ocean acidification' }
+          input: 'Ocean acidification'
           reasoning: 'Deep dive into specific impact'
           evidence_var: '#E3'

@@ -34,8 +34,8 @@ const wiki_response_schema = z.object({
 // Define input schema
 const wikipedia_schema = z
   .string()
-  .min(1, 'Search query is required')
-  .describe('Search query');
+  .min(1, 'Input is required')
+  .describe('Wikipedia keyword query');
 
 type WikipediaInput = z.infer<typeof wikipedia_schema>;
 type WikiResponse = z.infer<typeof wiki_response_schema>;
@@ -53,10 +53,8 @@ interface WikiResult {
 
 export class WikipediaTool extends BaseTool {
   name = 'wikipedia';
-  description =
-    'Wikipedia[input]: Search Wikipedia articles and return summarized results. Input should be a search query.';
+  description = 'Search Wikipedia articles and return a set of ranked results.';
   schema = wikipedia_schema;
-  required_params = ['query'];
 
   private async fetch_with_retry(
     url: URL,

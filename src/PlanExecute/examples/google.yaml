@@ -5,8 +5,7 @@ examples:
   - - query: 'What are the latest developments in renewable energy technology?'
       actions:
         - tool: google
-          input:
-            { query: 'latest renewable energy technology breakthroughs 2024' }
+          input: 'latest renewable energy technology breakthroughs 2024'
           reasoning: 'Search for current developments in renewable energy'
           evidence_var: '#E1'
         - tool: llm
@@ -18,7 +17,7 @@ examples:
   - - query: 'How do I fix a leaking faucet?'
       actions:
         - tool: google
-          input: { query: 'how to fix leaking faucet step by step guide' }
+          input: 'how to fix leaking faucet step by step guide'
           reasoning: 'Find detailed repair instructions for leaking faucets'
           evidence_var: '#E1'
         - tool: llm
@@ -30,8 +29,7 @@ examples:
   - - query: "What's the best way to learn Python programming?"
       actions:
         - tool: google
-          input:
-            { query: 'best resources learn Python programming beginners 2024' }
+          input: 'best resources learn Python programming beginners 2024'
           reasoning: 'Find current recommended resources for learning Python'
           evidence_var: '#E1'
         - tool: llm
@@ -43,7 +41,7 @@ examples:
   - - query: 'Where can I find good Italian food in New York City?'
       actions:
         - tool: google
-          input: { query: 'Italian restaurants in New York City' }
+          input: 'Italian restaurants in New York City'
           reasoning: 'Find reputable Italian restaurants in New York City'
           evidence_var: '#E1'
         - tool: llm
@@ -55,7 +53,7 @@ examples:
   - - query: "What's the best price for a new laptop?"
       actions:
         - tool: google
-          input: { query: 'best price laptop recent reviews' }
+          input: 'best price laptop recent reviews'
           reasoning: 'Find current best prices for laptops'
           evidence_var: '#E1'
         - tool: llm
@@ -71,10 +69,7 @@ examples:
           reasoning: 'Generate initial paper structure'
           evidence_var: '#E1'
         - tool: google
-          input:
-            {
-              query: 'latest renewable energy research statistics studies 2024',
-            }
+          input: 'latest renewable energy research statistics studies 2024'
           reasoning: 'Find current research and data'
           evidence_var: '#E2'
         - tool: llm
@@ -90,11 +85,11 @@ examples:
           reasoning: 'Define research areas'
           evidence_var: '#E1'
         - tool: google
-          input: { query: 'japan travel itinerary 2 weeks best places' }
+          input: 'japan travel itinerary 2 weeks best places'
           reasoning: 'Research recommended itineraries'
           evidence_var: '#E2'
         - tool: google
-          input: { query: 'japan accommodation transportation costs 2024' }
+          input: 'japan accommodation transportation costs 2024'
           reasoning: 'Find logistics information'
           evidence_var: '#E3'
         - tool: llm
@@ -110,7 +105,7 @@ examples:
           reasoning: 'Break down renovation elements'
           evidence_var: '#E1'
         - tool: google
-          input: { query: 'average kitchen renovation costs 2024 breakdown' }
+          input: 'average kitchen renovation costs 2024 breakdown'
           reasoning: 'Find current cost data'
           evidence_var: '#E2'
         - tool: llm
@@ -126,10 +121,7 @@ examples:
           reasoning: 'Identify transition needs'
           evidence_var: '#E1'
         - tool: google
-          input:
-            {
-              query: 'data science career transition requirements certification courses',
-            }
+          input: 'data science career transition requirements certification courses'
           reasoning: 'Research transition paths'
           evidence_var: '#E2'
         - tool: llm
@@ -145,13 +137,11 @@ examples:
           reasoning: 'Define research areas'
           evidence_var: '#E1'
         - tool: google
-          input:
-            { query: 'evidence based chronic back pain treatments research' }
+          input: 'evidence based chronic back pain treatments research'
           reasoning: 'Find medical research'
           evidence_var: '#E2'
         - tool: google
-          input:
-            { query: 'back pain treatment effectiveness studies comparison' }
+          input: 'back pain treatment effectiveness studies comparison'
           reasoning: 'Research treatment outcomes'
           evidence_var: '#E3'
         - tool: llm

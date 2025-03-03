@@ -9,7 +9,10 @@ import type { ToolResult } from '../types';
 
 dotenv.config();
 
-const llm_schema = z.string().min(1, { message: 'Input is required' });
+const llm_schema = z
+  .string()
+  .min(1, { message: 'Input is required' })
+  .describe('LLM user prompt');
 
 type LlmParams = z.infer<typeof llm_schema>;
 
@@ -26,9 +29,8 @@ const config: AiConfig = {
 export class LlmTool extends BaseTool {
   name = 'llm';
   description =
-    'LLM[input]: A pretrained LLM for general knowledge and reasoning. Prioritize when confident in solving the problem. Input can be any instruction.';
+    'A pretrained LLM for general knowledge and reasoning. Prioritize when confident in solving the problem.';
   schema = llm_schema;
-  required_params = ['input'];
 
   private ai_client: AiGenerate;
   private readonly system_prompt =

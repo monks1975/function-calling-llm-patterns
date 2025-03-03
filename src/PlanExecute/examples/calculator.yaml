@@ -5,7 +5,7 @@ examples:
   - - query: 'What is 25% of 420?'
       actions:
         - tool: calculator
-          input: { expression: '420 * 0.25' }
+          input: '420 * 0.25'
           reasoning: 'Calculate 25% by multiplying by 0.25'
           evidence_var: '#E1'
         - tool: llm
@@ -17,7 +17,7 @@ examples:
   - - query: 'If I have $1500 and want to save 15% of it for emergencies, how much should I save?'
       actions:
         - tool: calculator
-          input: { expression: '1500 * 0.15' }
+          input: '1500 * 0.15'
           reasoning: 'Calculate 15% of $1500 to determine savings amount'
           evidence_var: '#E1'
         - tool: llm
@@ -43,11 +43,11 @@ examples:
   - - query: 'Calculate compound interest on $1000 invested for 3 years at 5% annual rate'
       actions:
         - tool: calculator
-          input: { expression: '1000 * (1 + 0.05)^3' }
+          input: '1000 * (1 + 0.05)^3'
           reasoning: 'Calculate compound interest using P(1+r)^t formula'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: '#E1 - 1000' }
+          input: '#E1 - 1000'
           reasoning: 'Calculate the interest earned by subtracting principal'
           evidence_var: '#E2'
         - tool: llm
@@ -59,11 +59,11 @@ examples:
   - - query: 'Plot points (1,2), (2,4), (3,6) on a line graph'
       actions:
         - tool: calculator
-          input: { expression: 'slope([1,2,3], [2,4,6])' }
+          input: 'slope([1,2,3], [2,4,6])'
           reasoning: 'Calculate slope of points'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: 'intercept([1,2,3], [2,4,6])' }
+          input: 'intercept([1,2,3], [2,4,6])'
           reasoning: 'Calculate y-intercept'
           evidence_var: '#E2'
         - tool: llm
@@ -75,11 +75,11 @@ examples:
   - - query: 'What are the roots of x^2 - 5x + 6?'
       actions:
         - tool: calculator
-          input: { expression: '(-(-5) + sqrt((-5)^2 - 4*1*6))/(2*1)' }
+          input: '(-(-5) + sqrt((-5)^2 - 4*1*6))/(2*1)'
           reasoning: 'Calculate first root using quadratic formula'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: '(-(-5) - sqrt((-5)^2 - 4*1*6))/(2*1)' }
+          input: '(-(-5) - sqrt((-5)^2 - 4*1*6))/(2*1)'
           reasoning: 'Calculate second root using quadratic formula'
           evidence_var: '#E2'
         - tool: llm
@@ -91,11 +91,11 @@ examples:
   - - query: 'Convert 98.6°F to Celsius and Kelvin'
       actions:
         - tool: calculator
-          input: { expression: '(98.6 - 32) * 5/9' }
+          input: '(98.6 - 32) * 5/9'
           reasoning: 'Convert Fahrenheit to Celsius'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: '#E1 + 273.15' }
+          input: '#E1 + 273.15'
           reasoning: 'Convert Celsius to Kelvin'
           evidence_var: '#E2'
         - tool: llm
@@ -107,11 +107,11 @@ examples:
   - - query: 'Convert 26.2 miles to kilometers and meters'
       actions:
         - tool: calculator
-          input: { expression: '26.2 * 1.60934' }
+          input: '26.2 * 1.60934'
           reasoning: 'Convert miles to kilometers'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: '#E1 * 1000' }
+          input: '#E1 * 1000'
           reasoning: 'Convert kilometers to meters'
           evidence_var: '#E2'
         - tool: llm
@@ -123,11 +123,11 @@ examples:
   - - query: 'How old was Einstein when he died? Born March 14, 1879, died April 18, 1955'
       actions:
         - tool: calculator
-          input: { expression: '1955 - 1879' }
+          input: '1955 - 1879'
           reasoning: 'Calculate years between birth and death'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: '(4 - 3) + (18 - 14)/30' }
+          input: '(4 - 3) + (18 - 14)/30'
           reasoning: 'Add fractional year from months/days'
           evidence_var: '#E2'
         - tool: llm
@@ -139,11 +139,11 @@ examples:
   - - query: 'Calculate the golden ratio using the first 10 Fibonacci numbers'
       actions:
         - tool: calculator
-          input: { expression: 'fib(10)' }
+          input: 'fib(10)'
           reasoning: 'Generate first 10 Fibonacci numbers'
           evidence_var: '#E1'
         - tool: calculator
-          input: { expression: 'last(#E1)/second_last(#E1)' }
+          input: 'last(#E1)/second_last(#E1)'
           reasoning: 'Calculate ratio of last two numbers'
           evidence_var: '#E2'
         - tool: llm
