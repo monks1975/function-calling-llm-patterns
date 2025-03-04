@@ -2,6 +2,8 @@
 
 import { BaseAgent, type AgentConfig } from './base.agent';
 import { get_planner_prompt, get_solver_prompt } from './helpers';
+import { Logger } from './logger';
+import { solution_schema, plan_schema } from './types';
 
 import type { AiCallbacks } from './ai';
 import type { ChatCompletion } from 'openai/resources/chat/completions';
@@ -31,23 +33,50 @@ export class Planner extends BaseAgent {
       // Clear any previous conversation except system prompt
       this.reset_messages();
 
+      // Log system prompt
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Planner system prompt:', {
+          prompt: this.system_prompt,
+        })
+      );
+
       // Add the query as a user message
-      this.add_user_message(
-        `Create a detailed plan to answer the following query: "${query}"`
+      const user_msg = `Create a detailed plan to answer the following query: "${query}"`;
+      this.add_user_message(user_msg);
+
+      // Log user message
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Planner user message:', { message: user_msg })
       );
 
       // Get completion formatted as JSON
       const plan_json = await this.get_json_completion(callbacks);
 
-      // Parse the JSON response with retries
-      const plan_obj = await this.parse_json_with_retries<any>(
+      // Log completion
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Planner completion:', { completion: plan_json })
+      );
+
+      // Parse and validate the JSON response with retries
+      const validated_plan = await this.parse_and_validate_json<Plan>(
         plan_json,
+        plan_schema,
         3,
         'Creating plan for query: ' + query
       );
 
-      // Validate against our schema
-      const validated_plan = this.validate_plan(plan_obj, query);
+      // Ensure query is set and default values
+      if (!validated_plan.query) {
+        validated_plan.query = query;
+      }
+
+      // Ensure each action has required fields
+      validated_plan.actions = validated_plan.actions.map((action, index) => ({
+        ...action,
+        id: action.id || index + 1,
+        reasoning: action.reasoning || 'No reasoning provided',
+        evidence_var: action.evidence_var || `#E${index + 1}`,
+      }));
 
       return validated_plan;
     } catch (error) {
@@ -57,32 +86,6 @@ export class Planner extends BaseAgent {
         }`
       );
     }
-  }
-
-  /**
-   * Validate the plan against our schema
-   */
-  private validate_plan(plan_obj: any, query: string): Plan {
-    // Ensure query is set
-    plan_obj.query = plan_obj.query || query;
-
-    // Basic validation
-    if (!Array.isArray(plan_obj.actions)) {
-      throw new Error('Plan must contain an array of actions');
-    }
-
-    // Ensure each action has required fields
-    plan_obj.actions = plan_obj.actions.map((action: any, index: number) => {
-      return {
-        id: action.id || index + 1,
-        tool: action.tool,
-        input: action.input,
-        reasoning: action.reasoning || 'No reasoning provided',
-        evidence_var: action.evidence_var || `#E${index + 1}`,
-      };
-    });
-
-    return plan_obj as Plan;
   }
 }
 
@@ -127,9 +130,24 @@ export class Worker {
         throw new Error(`Tool "${action.tool}" not found`);
       }
 
-      // Substitute variables in the input
+      // Build context from previous evidence
+      let context_str = '';
+      if (Object.keys(evidence_map).length > 0) {
+        context_str = '\nAvailable context:\n';
+        for (const [var_name, prev_evidence] of Object.entries(evidence_map)) {
+          if (prev_evidence.status === 'success' && prev_evidence.data) {
+            context_str += `${var_name}: ${
+              typeof prev_evidence.data === 'string'
+                ? prev_evidence.data
+                : JSON.stringify(prev_evidence.data)
+            }\n`;
+          }
+        }
+      }
+
+      // Combine input with context
       const processed_input = this.substitute_variables(
-        action.input,
+        action.input + context_str,
         evidence_map
       );
 
@@ -227,24 +245,52 @@ export class Solver extends BaseAgent {
       // Clear any previous conversation except system prompt
       this.reset_messages();
 
+      // Log system prompt
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Solver system prompt:', {
+          prompt: this.system_prompt,
+        })
+      );
+
       // Format the plan and evidence for the solver
-      const formatted_context = this.format_context(query, plan, evidence_map);
+      const formatted_context = this.format_solver_context(
+        query,
+        plan,
+        evidence_map
+      );
 
       // Add the context as a user message
       this.add_user_message(formatted_context);
 
+      // Log formatted context
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Solver formatted context:', {
+          context: formatted_context,
+        })
+      );
+
       // Get completion formatted as JSON
       const solution_json = await this.get_json_completion(callbacks);
 
-      // Parse the JSON response with retries
-      const solution_obj = await this.parse_json_with_retries<any>(
+      // Log completion
+      this.log_handlers.forEach((handler) =>
+        handler('debug', 'Solver completion:', { completion: solution_json })
+      );
+
+      // Parse and validate the JSON response with retries
+      const validated_solution = await this.parse_and_validate_json<Solution>(
         solution_json,
+        solution_schema,
         3,
         'Creating solution for query: ' + query
       );
 
-      // Validate and format the solution
-      return this.validate_solution(solution_obj, query);
+      // Ensure query is set
+      if (!validated_solution.query) {
+        validated_solution.query = query;
+      }
+
+      return validated_solution;
     } catch (error) {
       throw new Error(
         `Failed to create solution: ${
@@ -257,58 +303,52 @@ export class Solver extends BaseAgent {
   /**
    * Format the context for the solver
    */
-  private format_context(
+  private format_solver_context(
     query: string,
     plan: Plan,
     evidence_map: Record<string, Evidence>
   ): string {
-    let context = `QUERY: ${query}\n\nPLAN AND EVIDENCE:\n`;
+    let context = `QUERY: ${query}\n\n`;
 
-    // Add each action and its evidence
+    // Format PLAN section
+    context += 'PLAN:\n';
     for (const action of plan.actions) {
-      context += `\nPlan: ${action.reasoning}\n`;
-      context += `Tool: ${action.tool}\n`;
-      context += `Input: ${action.input}\n`;
+      context += `Step ${action.id}:\n`;
+      context += `  Reasoning: ${action.reasoning}\n`;
+      context += `  Tool: ${action.tool}\n`;
+      context += `  Input: ${action.input}\n`;
+      context += `  Evidence Variable: ${action.evidence_var}\n\n`;
+    }
 
-      // Add evidence if available
+    // Format EVIDENCE section
+    context += 'EVIDENCE:\n';
+    for (const action of plan.actions) {
       const evidence = evidence_map[action.evidence_var];
+      context += `${action.evidence_var} (Step ${action.id}):\n`;
       if (evidence) {
-        context += `Evidence (${action.evidence_var}): `;
         if (evidence.status === 'success') {
-          context += JSON.stringify(evidence.data).substring(0, 500);
-          if (JSON.stringify(evidence.data).length > 500) {
-            context += '... (truncated)';
-          }
+          context += `  Status: success\n  Data: ${
+            typeof evidence.data === 'string'
+              ? evidence.data
+              : JSON.stringify(evidence.data, null, 2)
+          }\n`;
         } else {
-          context += `ERROR: ${evidence.error}`;
+          context += `  Status: error\n  Error: ${evidence.error}\n`;
         }
-        context += '\n';
       } else {
-        context += `Evidence: No evidence collected for this step\n`;
+        context += '  Status: not collected\n';
       }
+      context += '\n';
     }
 
-    context += `\nBased on the above plan and evidence, create a solution for the query.`;
+    context += `Based on the above plan and evidence, create a solution for the query.
+Your response MUST be a JSON object with these string fields:
+{
+  "query": "the original query string",
+  "answer": "your answer as a single string",
+  "reasoning": "your reasoning as a single string"
+}`;
     return context;
-  }
-
-  /**
-   * Validate the solution against our schema
-   */
-  private validate_solution(solution_obj: any, query: string): Solution {
-    // Ensure query is set
-    solution_obj.query = solution_obj.query || query;
-
-    // Ensure answer exists
-    if (!solution_obj.answer) {
-      throw new Error('Solution must contain an answer');
-    }
-
-    return {
-      query: solution_obj.query,
-      answer: solution_obj.answer,
-      reasoning: solution_obj.reasoning || undefined,
-    };
   }
 }
 
@@ -320,11 +360,13 @@ export class ReWOO {
   private worker: Worker;
   private solver: Solver;
   private state: ExecutionState;
+  private logger: Logger;
 
   constructor(planner: Planner, worker: Worker, solver: Solver) {
     this.planner = planner;
     this.worker = worker;
     this.solver = solver;
+    this.logger = new Logger();
     this.state = {
       query: '',
       plan: null,
@@ -339,6 +381,14 @@ export class ReWOO {
       },
       logs: [],
     };
+
+    // Connect base agent logs
+    const log_handler = (level: string, message: string, data?: any) => {
+      this.log(level as any, message, data);
+    };
+
+    this.planner.add_log_handler(log_handler);
+    this.solver.add_log_handler(log_handler);
   }
 
   /**
@@ -347,15 +397,16 @@ export class ReWOO {
    * @returns A Solution object
    */
   async process(query: string): Promise<Solution> {
+    await this.logger.init();
     this.state.query = query;
     this.state.start_time = Date.now();
     this.state.evidence_map = {};
 
-    this.log('info', `Processing query: ${query}`, { query }, 'system');
+    this.log('info', `Processing query: ${query}`, { query });
 
     try {
       // 1. Create plan
-      this.log('info', 'Creating plan', undefined, 'planner');
+      this.log('info', 'Creating plan');
       this.state.plan = await this.planner.create_plan(query, {
         onCompletion: (completion: ChatCompletion) => {
           if (completion.usage) {
@@ -366,19 +417,16 @@ export class ReWOO {
           }
         },
       });
-      this.log('info', 'Plan created', { plan: this.state.plan }, 'planner');
+      this.log('info', 'Plan created', { plan: this.state.plan });
 
       // 2. Execute each action in sequence
       for (let i = 0; i < this.state.plan.actions.length; i++) {
         this.state.current_action_index = i;
         const action = this.state.plan.actions[i];
 
-        this.log(
-          'info',
-          `Executing action ${i + 1}: ${action.tool}`,
-          { action },
-          'worker'
-        );
+        this.log('info', `Executing action ${i + 1}: ${action.tool}`, {
+          action,
+        });
 
         // Execute the action
         const evidence = await this.worker.execute_action(
@@ -400,13 +448,12 @@ export class ReWOO {
         this.log(
           evidence.status === 'success' ? 'info' : 'error',
           `Action ${i + 1} ${evidence.status}`,
-          { evidence },
-          'worker'
+          { evidence }
         );
       }
 
       // 3. Create solution
-      this.log('info', 'Creating solution', undefined, 'solver');
+      this.log('info', 'Creating solution');
       this.state.solution = await this.solver.create_solution(
         query,
         this.state.plan,
@@ -423,24 +470,19 @@ export class ReWOO {
         }
       );
 
-      this.log(
-        'info',
-        'Solution created',
-        { solution: this.state.solution },
-        'solver'
-      );
+      this.log('info', 'Solution created', { solution: this.state.solution });
     } catch (error) {
       this.log(
         'error',
         `Error in processing: ${
           error instanceof Error ? error.message : String(error)
         }`,
-        { error },
-        'system'
+        { error }
       );
       throw error;
     } finally {
       this.state.end_time = Date.now();
+      await this.logger.save();
     }
 
     return this.state.solution!;
@@ -465,15 +507,16 @@ export class ReWOO {
   private log(
     level: 'debug' | 'info' | 'warn' | 'error',
     message: string,
-    data?: any,
-    component?: 'planner' | 'worker' | 'solver' | 'system'
+    data?: any
   ) {
-    this.state.logs.push({
+    const log_entry = {
       timestamp: Date.now(),
       level,
       message,
       data,
-      component,
-    });
+    };
+
+    this.state.logs.push(log_entry);
+    this.logger.add(level, message, data);
   }
 }

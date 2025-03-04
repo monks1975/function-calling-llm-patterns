@@ -24,6 +24,10 @@ export class CalculatorTool extends BaseTool {
   private normalize_expression(expr: string): string {
     return (
       expr
+        // Remove LaTeX math delimiters
+        .replace(/[\[\]\\]/g, '')
+        // Replace LaTeX times symbol
+        .replace(/\\times/g, '*')
         // Remove multiple spaces
         .replace(/\s+/g, ' ')
         // Trim whitespace

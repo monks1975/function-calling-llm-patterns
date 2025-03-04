@@ -8,6 +8,8 @@ import type { ToolResult } from '../types';
 
 dotenv.config();
 
+const MAX_RESULTS = 5;
+
 // Define input schema
 const search_schema = z
   .string()
@@ -79,7 +81,7 @@ export class GoogleTool extends BaseTool {
           description: result.content,
           url: result.url,
         }))
-        .slice(0, 5);
+        .slice(0, MAX_RESULTS);
 
       return {
         status: 'success',

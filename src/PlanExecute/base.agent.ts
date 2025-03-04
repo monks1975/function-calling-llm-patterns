@@ -2,6 +2,7 @@
 
 import { AiGenerate, AiConfig, AiCallbacks } from './ai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { z } from 'zod';
 
 export interface AgentConfig extends AiConfig {
   system_prompt?: string;
@@ -9,6 +10,11 @@ export interface AgentConfig extends AiConfig {
 
 export class BaseAgent extends AiGenerate {
   protected system_prompt?: string;
+  protected log_handlers: ((
+    level: string,
+    message: string,
+    data?: any
+  ) => void)[] = [];
 
   constructor(config: AgentConfig) {
     super(config);
@@ -21,6 +27,20 @@ export class BaseAgent extends AiGenerate {
         content: this.system_prompt,
       });
     }
+  }
+
+  /**
+   * Add a log handler to receive parsing and validation errors
+   */
+  public add_log_handler(
+    handler: (level: string, message: string, data?: any) => void
+  ): void {
+    this.log_handlers.push(handler);
+  }
+
+  protected log_error(message: string, data?: any): void {
+    console.error(`[BaseAgent] ${message}`);
+    this.log_handlers.forEach((handler) => handler('error', message, data));
   }
 
   /**
@@ -58,37 +78,81 @@ export class BaseAgent extends AiGenerate {
   }
 
   /**
-   * Helper function to parse JSON with retries and model feedback
+   * Helper function to parse and validate JSON against a schema with retries
    */
-  protected async parse_json_with_retries<T>(
+  protected async parse_and_validate_json<T>(
     json_str: string,
+    schema: z.ZodSchema<T>,
     max_attempts: number = 3,
     feedback_context: string = ''
   ): Promise<T> {
     let last_error: Error | null = null;
+    let parsed_json: any;
 
     for (let attempt = 1; attempt <= max_attempts; attempt++) {
       try {
-        return JSON.parse(json_str) as T;
+        // First try to parse the JSON
+        if (!parsed_json) {
+          try {
+            parsed_json = JSON.parse(json_str);
+          } catch (parse_error) {
+            this.log_error(`Attempt ${attempt}: JSON Parse Error`, {
+              error:
+                parse_error instanceof Error
+                  ? parse_error.message
+                  : String(parse_error),
+              json_str: json_str.substring(0, 100) + '...',
+            });
+            throw parse_error;
+          }
+        }
+
+        // Then validate against schema
+        return schema.parse(parsed_json);
       } catch (error) {
         last_error = error instanceof Error ? error : new Error(String(error));
 
         if (attempt === max_attempts) break;
 
+        // Prepare error feedback
+        let error_message = '';
+        if (error instanceof z.ZodError) {
+          error_message = error.errors
+            .map((e) => `${e.path.join('.')}: ${e.message}`)
+            .join('\n');
+          error_message = `Schema validation failed:\n${error_message}`;
+
+          this.log_error(`Attempt ${attempt}: Schema Validation Error`, {
+            errors: error.errors,
+            context: feedback_context,
+          });
+        } else {
+          error_message = last_error.message;
+          this.log_error(`Attempt ${attempt}: General Error`, {
+            error: error_message,
+            context: feedback_context,
+          });
+        }
+
         // Add feedback about the error to the model
         this.add_user_message(
-          `Your last response contained invalid JSON. Error: ${last_error.message}\n` +
+          `Your last response was invalid. Error: ${error_message}\n` +
             `Context: ${feedback_context}\n` +
-            'Please provide a corrected JSON response.'
+            'Please provide a corrected response that matches the required schema.'
         );
 
-        // Get new completion
+        // Get new completion and reset parsed_json
         json_str = await this.get_json_completion();
+        parsed_json = null;
       }
     }
 
-    throw new Error(
-      `Failed to parse JSON after ${max_attempts} attempts. Last error: ${last_error?.message}`
-    );
+    const final_error = `Failed to parse and validate JSON after ${max_attempts} attempts. Last error: ${last_error?.message}`;
+    this.log_error('Max Retries Exceeded', {
+      attempts: max_attempts,
+      last_error: last_error?.message,
+      context: feedback_context,
+    });
+    throw new Error(final_error);
   }
 }

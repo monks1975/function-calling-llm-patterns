@@ -76,6 +76,11 @@ For each step, specify:
 3. The input for the tool
 4. A variable name to store the evidence in (#E1, #E2, etc.)
 
+Important constraints:
+- Plans must have 5 or fewer steps
+- Combine related operations into single steps when possible
+- Prioritize the most essential actions for solving the query
+
 Available tools:
 
 {{#each tools}}
@@ -86,7 +91,6 @@ Input Schema: {{{this.schema}}}
 {{/each}}
 
 The plan should be accurate and account for all necessary steps to solve the query.
-If you think it makes sense, provide a little redundancy in your plan, by having multiple paths to the same end goal.
 
 Your output must be valid JSON conforming to this schema:
 
@@ -105,16 +109,16 @@ You will receive:
 2. A plan with reasoning steps
 3. Evidence collected from executing the plan
 
-Your task is to synthesize all information and provide the best possible answer to the query.
-Focus on accuracy and clarity, citing specific evidence where relevant.
-
 Your output must be valid JSON conforming to this schema:
 
 {{{schema}}}
 
 Here are some example solutions formatted as valid JSON:
 
-{{{examples}}}`
+{{{examples}}}
+
+Your task is to synthesize all information and provide the best possible answer to the query.
+Focus on accuracy and clarity, citing specific evidence where relevant.`
 );
 
 /**
@@ -158,7 +162,7 @@ export const get_solver_prompt = (): string => {
   const solve_examples = get_solve_examples();
 
   return solver_template({
-    schema: JSON.stringify(solution_schema.shape, null, 2),
+    schema: JSON.stringify(zodToJsonSchema(solution_schema), null, 2),
     examples: solve_examples,
   });
 };

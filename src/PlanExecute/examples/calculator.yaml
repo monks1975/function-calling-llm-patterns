@@ -13,19 +13,7 @@ examples:
           reasoning: 'Present the calculation result in a natural way'
           evidence_var: '#E2'
 
-  # Example 2: Financial savings calculation
-  - - query: 'If I have $1500 and want to save 15% of it for emergencies, how much should I save?'
-      actions:
-        - tool: calculator
-          input: '1500 * 0.15'
-          reasoning: 'Calculate 15% of $1500 to determine savings amount'
-          evidence_var: '#E1'
-        - tool: llm
-          input: 'Format the result of #E1 as advice about emergency savings from $1500'
-          reasoning: 'Present the calculation as financial advice'
-          evidence_var: '#E2'
-
-  # Example 3: Multi-step arithmetic problem
+  # Example 2: Multi-step arithmetic problem
   - - query: 'If I have 5 apples and eat 2, then buy 3 more, how many do I have?'
       actions:
         - id: 1
@@ -39,39 +27,27 @@ examples:
           reasoning: 'Add newly bought apples to get final count'
           evidence_var: '#E2'
 
-  # Example 4: Compound interest calculation
+  # Example 3: Compound interest calculation
   - - query: 'Calculate compound interest on $1000 invested for 3 years at 5% annual rate'
       actions:
-        - tool: calculator
-          input: '1000 * (1 + 0.05)^3'
-          reasoning: 'Calculate compound interest using P(1+r)^t formula'
+        - tool: llm
+          input: 'Generate the formula to calculate compound interest for $1000 principal, 5% annual rate, over 3 years. Return only the mathematical expression using standard operators (*, +, -, ^, /)'
+          reasoning: 'Get the compound interest formula with values substituted'
           evidence_var: '#E1'
         - tool: calculator
-          input: '#E1 - 1000'
+          input: '#E1'
+          reasoning: 'Calculate total amount using LLM-provided formula'
+          evidence_var: '#E2'
+        - tool: calculator
+          input: '#E2 - 1000'
           reasoning: 'Calculate the interest earned by subtracting principal'
-          evidence_var: '#E2'
+          evidence_var: '#E3'
         - tool: llm
-          input: 'Create a yearly breakdown table showing principal and interest based on #E1 and #E2'
+          input: 'Create a yearly breakdown table showing principal and interest based on #E2 and #E3'
           reasoning: 'Present compound interest growth over time'
-          evidence_var: '#E3'
+          evidence_var: '#E4'
 
-  # Example 5: Linear regression and plotting
-  - - query: 'Plot points (1,2), (2,4), (3,6) on a line graph'
-      actions:
-        - tool: calculator
-          input: 'slope([1,2,3], [2,4,6])'
-          reasoning: 'Calculate slope of points'
-          evidence_var: '#E1'
-        - tool: calculator
-          input: 'intercept([1,2,3], [2,4,6])'
-          reasoning: 'Calculate y-intercept'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Generate an ASCII/HTML line graph for points (1,2), (2,4), (3,6) with slope #E1 and y-intercept #E2'
-          reasoning: 'Visualize linear relationship'
-          evidence_var: '#E3'
-
-  # Example 6: Quadratic equation solver
+  # Example 4: Quadratic equation solver
   - - query: 'What are the roots of x^2 - 5x + 6?'
       actions:
         - tool: calculator
@@ -87,7 +63,7 @@ examples:
           reasoning: 'Present and verify quadratic equation solution'
           evidence_var: '#E3'
 
-  # Example 7: Temperature conversion
+  # Example 5: Temperature conversion
   - - query: 'Convert 98.6°F to Celsius and Kelvin'
       actions:
         - tool: calculator
@@ -101,52 +77,4 @@ examples:
         - tool: llm
           input: 'Create a temperature conversion table showing 98.6°F in all three scales using #E1 and #E2'
           reasoning: 'Present temperature in multiple scales'
-          evidence_var: '#E3'
-
-  # Example 8: Unit conversion - Miles to kilometers and meters
-  - - query: 'Convert 26.2 miles to kilometers and meters'
-      actions:
-        - tool: calculator
-          input: '26.2 * 1.60934'
-          reasoning: 'Convert miles to kilometers'
-          evidence_var: '#E1'
-        - tool: calculator
-          input: '#E1 * 1000'
-          reasoning: 'Convert kilometers to meters'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Format the marathon distance of 26.2 miles showing equivalent values in km (#E1) and m (#E2)'
-          reasoning: 'Present distance in multiple units'
-          evidence_var: '#E3'
-
-  # Example 9: Age calculation from dates
-  - - query: 'How old was Einstein when he died? Born March 14, 1879, died April 18, 1955'
-      actions:
-        - tool: calculator
-          input: '1955 - 1879'
-          reasoning: 'Calculate years between birth and death'
-          evidence_var: '#E1'
-        - tool: calculator
-          input: '(4 - 3) + (18 - 14)/30'
-          reasoning: 'Add fractional year from months/days'
-          evidence_var: '#E2'
-        - tool: llm
-          input: "Format Einstein's age at death combining #E1 years and approximately #E2 additional months"
-          reasoning: 'Present precise age calculation'
-          evidence_var: '#E3'
-
-  # Example 10: Fibonacci sequence ratios
-  - - query: 'Calculate the golden ratio using the first 10 Fibonacci numbers'
-      actions:
-        - tool: calculator
-          input: 'fib(10)'
-          reasoning: 'Generate first 10 Fibonacci numbers'
-          evidence_var: '#E1'
-        - tool: calculator
-          input: 'last(#E1)/second_last(#E1)'
-          reasoning: 'Calculate ratio of last two numbers'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Compare the calculated ratio #E2 to the golden ratio (1.618034) and explain convergence using sequence #E1'
-          reasoning: 'Analyze Fibonacci sequence golden ratio approximation'
           evidence_var: '#E3'

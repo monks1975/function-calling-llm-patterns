@@ -10,15 +10,7 @@ examples:
           reasoning: 'Use LLM for natural conversation and greeting'
           evidence_var: '#E1'
 
-  # Example 2: Technical simplification - Demonstrates making complex content accessible
-  - - query: 'Can you summarize this technical article for a general audience?'
-      actions:
-        - tool: llm
-          input: 'Summarize the following technical content for a general audience, focusing on key concepts and implications: #E1'
-          reasoning: 'Create an accessible summary while maintaining accuracy'
-          evidence_var: '#E2'
-
-  # Example 3: Code debugging - Shows technical problem-solving capabilities
+  # Example 2: Code debugging - Shows technical problem-solving capabilities
   - - query: "Help me debug this Python code that's giving an IndexError"
       actions:
         - tool: llm
@@ -26,15 +18,7 @@ examples:
           reasoning: 'Provide debugging assistance and code improvements'
           evidence_var: '#E2'
 
-  # Example 4: Professional writing - Illustrates business communication skills
-  - - query: 'Write a professional email declining a meeting invitation'
-      actions:
-        - tool: llm
-          input: 'Draft a polite and professional email declining a meeting invitation, maintaining good relationships'
-          reasoning: 'Generate appropriate business communication'
-          evidence_var: '#E1'
-
-  # Example 5: Simplified explanation - Shows ability to adapt content for different audiences
+  # Example 3: Simplified explanation - Shows ability to adapt content for different audiences
   - - query: 'Explain the concept of machine learning to a 10-year-old'
       actions:
         - tool: llm
@@ -42,7 +26,7 @@ examples:
           reasoning: 'Create an age-appropriate explanation of a complex topic'
           evidence_var: '#E1'
 
-  # Example 6: Research analysis - Demonstrates comparative analysis capabilities
+  # Example 4: Research analysis - Demonstrates comparative analysis capabilities
   - - query: 'Compare these two research papers and highlight key differences'
       actions:
         - tool: llm
@@ -50,23 +34,7 @@ examples:
           reasoning: 'Synthesize and compare academic content'
           evidence_var: '#E3'
 
-  # Example 7: Essay planning - Shows structured writing assistance
-  - - query: 'Help me plan a persuasive essay about climate change solutions'
-      actions:
-        - tool: llm
-          input: 'Generate a detailed outline for a persuasive essay on climate change solutions, including key arguments and evidence needed'
-          reasoning: 'Create initial essay structure'
-          evidence_var: '#E1'
-        - tool: llm
-          input: 'Based on the outline (#E1), suggest specific examples and data points needed to support each main argument'
-          reasoning: 'Strengthen outline with concrete supporting details'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Create a writing plan with suggested paragraph transitions and flow based on outline and examples (#E1, #E2)'
-          reasoning: 'Develop cohesive writing strategy'
-          evidence_var: '#E3'
-
-  # Example 8: Math concept breakdown - Demonstrates step-by-step teaching
+  # Example 5: Math concept breakdown - Demonstrates step-by-step teaching
   - - query: 'Help me understand and teach quadratic equations'
       actions:
         - tool: llm
@@ -82,7 +50,7 @@ examples:
           reasoning: 'Develop teaching guidance'
           evidence_var: '#E3'
 
-  # Example 9: Literature analysis scaffolding - Shows guided learning support
+  # Example 6: Literature analysis scaffolding - Shows guided learning support
   - - query: 'Help me analyze themes in To Kill a Mockingbird'
       actions:
         - tool: llm
@@ -96,20 +64,4 @@ examples:
         - tool: llm
           input: 'Develop a theme comparison framework using the analysis and questions (#E1, #E2) to explore thematic connections'
           reasoning: 'Build comparative analysis structure'
-          evidence_var: '#E3'
-
-  # Example 10: Research project planning - Shows complex task breakdown
-  - - query: 'Help me plan my research project on ocean pollution'
-      actions:
-        - tool: llm
-          input: 'Create a research project outline identifying key areas of ocean pollution to investigate and research questions'
-          reasoning: 'Define project scope and objectives'
-          evidence_var: '#E1'
-        - tool: llm
-          input: 'Based on the outline (#E1), suggest specific research methodologies and data collection approaches'
-          reasoning: 'Develop research methodology'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Create a project timeline and resource list based on the outline and methodology (#E1, #E2)'
-          reasoning: 'Plan project execution'
           evidence_var: '#E3'

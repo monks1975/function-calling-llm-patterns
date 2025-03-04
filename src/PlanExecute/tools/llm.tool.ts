@@ -21,7 +21,7 @@ const config: AiConfig = {
   base_url: 'https://api.groq.com/openai/v1',
   model: 'llama-3.1-8b-instant',
   temperature: 0.7,
-  max_tokens: 4096,
+  max_tokens: 1024,
   timeout_ms: 10000, // 10 seconds
   max_retries: 3,
 };

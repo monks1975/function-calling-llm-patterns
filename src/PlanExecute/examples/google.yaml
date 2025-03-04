@@ -21,7 +21,7 @@ examples:
           reasoning: 'Find detailed repair instructions for leaking faucets'
           evidence_var: '#E1'
         - tool: llm
-          input: 'Create a clear step-by-step guide from the search results in #E1'
+          input: 'Create a clear step-by-step guide from these search results: #E1'
           reasoning: 'Convert search results into actionable instructions'
           evidence_var: '#E2'
 
@@ -37,67 +37,27 @@ examples:
           reasoning: 'Organize search results into a learning roadmap'
           evidence_var: '#E2'
 
-  # Example 4: Local restaurant recommendations
-  - - query: 'Where can I find good Italian food in New York City?'
+  # Example 4: Find athlete hometown
+  - - query: 'What is the hometown of the 2024 Australian Open winner?'
       actions:
         - tool: google
-          input: 'Italian restaurants in New York City'
-          reasoning: 'Find reputable Italian restaurants in New York City'
+          input: '2024 Australian Open winner'
+          reasoning: 'Find the name of the 2024 Australian Open winner'
           evidence_var: '#E1'
         - tool: llm
-          input: 'Summarize the top recommendations from #E1'
-          reasoning: 'Create a concise list of Italian restaurants in New York City'
-          evidence_var: '#E2'
-
-  # Example 5: Product price comparison
-  - - query: "What's the best price for a new laptop?"
-      actions:
-        - tool: google
-          input: 'best price laptop recent reviews'
-          reasoning: 'Find current best prices for laptops'
-          evidence_var: '#E1'
-        - tool: llm
-          input: 'Summarize the top recommendations from #E1'
-          reasoning: 'Create a concise list of Italian restaurants in New York City'
-          evidence_var: '#E2'
-
-  # Example 6: Research paper writing help
-  - - query: 'Help me write a research paper on renewable energy'
-      actions:
-        - tool: llm
-          input: 'Create an outline for a research paper on renewable energy'
-          reasoning: 'Generate initial paper structure'
-          evidence_var: '#E1'
-        - tool: google
-          input: 'latest renewable energy research statistics studies 2024'
-          reasoning: 'Find current research and data'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Integrate research findings from #E2 into outline #E1'
-          reasoning: 'Combine outline with research'
-          evidence_var: '#E3'
-
-  # Example 7: Travel planning assistance
-  - - query: 'Plan a 2-week trip to Japan'
-      actions:
-        - tool: llm
-          input: 'Create initial travel categories to research for Japan trip'
-          reasoning: 'Define research areas'
-          evidence_var: '#E1'
-        - tool: google
-          input: 'japan travel itinerary 2 weeks best places'
-          reasoning: 'Research recommended itineraries'
+          input: 'Extract the name of the 2024 Australian Open winner from: #E1'
+          reasoning: 'Get just the winner name for follow-up search'
           evidence_var: '#E2'
         - tool: google
-          input: 'japan accommodation transportation costs 2024'
-          reasoning: 'Find logistics information'
+          input: '#E2 tennis player hometown birthplace'
+          reasoning: 'Search specifically for the winner hometown information'
           evidence_var: '#E3'
         - tool: llm
-          input: 'Create detailed travel plan using #E1 categories with info from #E2 and #E3'
-          reasoning: 'Synthesize into complete itinerary'
+          input: 'Extract and verify the hometown of #E2 from #E3, providing a clear answer'
+          reasoning: 'Get final verified hometown from search results'
           evidence_var: '#E4'
 
-  # Example 8: Home renovation cost estimation
+  # Example 5: Home renovation cost estimation
   - - query: 'How much would it cost to renovate my kitchen?'
       actions:
         - tool: llm
@@ -112,39 +72,3 @@ examples:
           input: 'Create itemized cost estimate using components #E1 and prices from #E2'
           reasoning: 'Generate detailed estimate'
           evidence_var: '#E3'
-
-  # Example 9: Career transition research
-  - - query: 'How do I switch to a career in data science?'
-      actions:
-        - tool: llm
-          input: 'Outline key requirements for data science career transition'
-          reasoning: 'Identify transition needs'
-          evidence_var: '#E1'
-        - tool: google
-          input: 'data science career transition requirements certification courses'
-          reasoning: 'Research transition paths'
-          evidence_var: '#E2'
-        - tool: llm
-          input: 'Create career transition roadmap using requirements #E1 and resources #E2'
-          reasoning: 'Build actionable plan'
-          evidence_var: '#E3'
-
-  # Example 10: Health condition research
-  - - query: 'What are the best treatments for chronic back pain?'
-      actions:
-        - tool: llm
-          input: 'List categories of back pain treatments to research'
-          reasoning: 'Define research areas'
-          evidence_var: '#E1'
-        - tool: google
-          input: 'evidence based chronic back pain treatments research'
-          reasoning: 'Find medical research'
-          evidence_var: '#E2'
-        - tool: google
-          input: 'back pain treatment effectiveness studies comparison'
-          reasoning: 'Research treatment outcomes'
-          evidence_var: '#E3'
-        - tool: llm
-          input: 'Summarize treatment options and effectiveness using #E1 categories and research from #E2 and #E3'
-          reasoning: 'Create treatment overview'
-          evidence_var: '#E4'
