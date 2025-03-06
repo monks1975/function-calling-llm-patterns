@@ -1,4 +1,4 @@
-// ~/src/rewoo/types.ts
+// ~/src/ReWOO/types.ts
 import { z } from 'zod';
 
 // Step definition schema
@@ -38,4 +38,13 @@ export interface ReWOOCallbacks {
   onToolExecute?: (step: Step, result: string) => void;
   onSolve?: (state: State) => void;
   onError?: (error: Error, state: State) => void;
+}
+
+// EvidenceRecord is a record of evidence for a session
+export interface EvidenceRecord {
+  session_id: string;
+  evidence_id: string; // E1, E2, etc.
+  content: string;
+  created_at: number;
+  step_variable: string;
 }

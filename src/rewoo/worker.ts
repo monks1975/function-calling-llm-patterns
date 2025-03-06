@@ -1,4 +1,4 @@
-// ~/src/rewoo/worker.ts
+// ~/src/ReWOO/worker.ts
 
 import { AiGenerate, type AiConfig } from './ai';
 

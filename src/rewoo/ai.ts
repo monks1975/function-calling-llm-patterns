@@ -1,4 +1,4 @@
-// ~/src/rewoo/ai.ts
+// ~/src/ReWOO/ai.ts
 // class for AI generation tasks
 
 import OpenAI from 'openai';

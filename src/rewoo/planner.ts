@@ -1,4 +1,4 @@
-// ~/src/rewoo/planner.ts
+// ~/src/ReWOO/planner.ts
 
 import Handlebars from 'handlebars';
 
@@ -7,8 +7,9 @@ import { AiGenerate, type AiConfig } from './ai';
 import type { State, Tool } from './types';
 
 // Handlebars template for the planner prompt
-const planner_template =
-  Handlebars.compile(`You are an expert planner that breaks tasks into sequential steps.
+// prettier-ignore
+const planner_template = Handlebars.compile(
+`You are an expert planner that breaks tasks into sequential steps.
 
 Today's date: {{today}}
 
@@ -71,7 +72,8 @@ Plan: Synthesize learning progress. #E2 = LLM[Create learning timeline from (#E1
 
 Begin!
 Describe your plans with rich details. Each Plan should be followed by only one #E.
-Task: {{task}}`);
+Task: {{task}}`
+);
 
 export class PlannerAgent {
   private ai: AiGenerate;

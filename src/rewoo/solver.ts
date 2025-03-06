@@ -1,4 +1,4 @@
-// ~/src/rewoo/solver.ts
+// ~/src/ReWOO/solver.ts
 
 import Handlebars from 'handlebars';
 
@@ -7,7 +7,11 @@ import { AiGenerate, type AiConfig } from './ai';
 import type { State } from './types';
 
 // Template for the solver prompt
-const solver_template = `You are an expert problem solver that analyzes evidence and provides clear, well-structured answers. Your response should always include:
+// prettier-ignore
+const solver_template = 
+`You are an expert problem solver that analyzes evidence and provides clear, well-structured answers.
+
+Your response should always include:
 
 1. A brief summary of key evidence points
 2. A final answer that directly addresses the task
@@ -127,15 +131,17 @@ Remember to:
 - Support conclusions with evidence`;
 
 // Template for the user prompt
-const user_template =
-  Handlebars.compile(`Solve the following task. To help you solve the task, we have made step-by-step Plans and retrieved corresponding Evidence for each Plan. Use them with caution since long evidence might contain irrelevant information. You will need to sift through the evidence to find the most relevant information to solve the problem.
+// prettier-ignore
+const user_template = Handlebars.compile(
+`Solve the following task. To help you solve the task, we have made step-by-step Plans and retrieved corresponding Evidence for each Plan. Use them with caution since long evidence might contain irrelevant information. You will need to sift through the evidence to find the most relevant information to solve the problem.
 
 {{plan_with_evidence}}
 
 Now solve the task or problem according to the provided Evidence above. If evidence is missing or incomplete, use your best judgment.
 Task: {{task}}
 
-First, briefly summarize the key information from each piece of evidence. Then provide your final answer.`);
+First, briefly summarize the key information from each piece of evidence. Then provide your final answer.`
+);
 
 export class SolverAgent {
   private ai: AiGenerate;

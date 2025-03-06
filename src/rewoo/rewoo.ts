@@ -1,4 +1,4 @@
-// ~/src/rewoo/rewoo.ts
+// ~/src/ReWOO/rewoo.ts
 
 import { v4 as uuid } from 'uuid';
 
@@ -7,7 +7,7 @@ import { SolverAgent } from './solver';
 import { Worker } from './worker';
 
 import type { AiConfig } from './ai';
-import type { State, Tool, ReWOOCallbacks } from './types';
+import type { EvidenceRecord, ReWOOCallbacks, State, Tool } from './types';
 
 export class ReWOO {
   private planner: PlannerAgent;
@@ -30,6 +30,20 @@ export class ReWOO {
 
   get current_state(): State {
     return { ...this.state };
+  }
+
+  // Getter for evidence records in a session; row-based
+  // Maps to evidence table schema
+  get evidence_records(): EvidenceRecord[] {
+    return Object.entries(this.state.results || {}).map(
+      ([variable, content], idx) => ({
+        session_id: this.state.session_id,
+        evidence_id: `E${idx + 1}`,
+        content,
+        created_at: this.state.timestamp || Date.now(),
+        step_variable: variable,
+      })
+    );
   }
 
   async process(task: string): Promise<State> {

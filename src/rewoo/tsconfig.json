@@ -1,4 +1,4 @@
-// ~/src/rewoo/tsconfig.json
+// ~/src/ReWOO/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -10,8 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "../../dist/rewoo",
     "declaration": true,
-    "typeRoots": ["../../node_modules/@types", "./types"]
+    "typeRoots": ["../../node_modules/@types", "types"]
   },
-  "include": ["./**/*"],
+  "include": ["**/*"],
   "exclude": ["node_modules", "dist"]
 }

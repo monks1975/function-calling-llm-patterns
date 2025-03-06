@@ -1,4 +1,4 @@
-// ~/src/rewoo/tools/search.tool.ts
+// ~/src/ReWOO/tools/search.tool.ts
 
 import { Tool } from '../types';
 

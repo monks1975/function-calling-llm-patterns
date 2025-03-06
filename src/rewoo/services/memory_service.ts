@@ -1,4 +1,4 @@
-// ~/src/rewoo/services/memory_service.ts
+// ~/src/ReWOO/services/memory_service.ts
 
 import { v4 as uuid } from 'uuid';
 

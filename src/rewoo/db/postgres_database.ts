@@ -1,4 +1,4 @@
-// ~/src/rewoo/db/postgres_database.ts
+// ~/src/ReWOO/db/postgres_database.ts
 
 import { Pool } from 'pg';
 

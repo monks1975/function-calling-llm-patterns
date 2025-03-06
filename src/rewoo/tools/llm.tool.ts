@@ -1,4 +1,4 @@
-// ~/src/rewoo/tools/llm.tool.ts
+// ~/src/ReWOO/tools/llm.tool.ts
 
 import { AiGenerate, type AiConfig } from '../ai';
 

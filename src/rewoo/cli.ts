@@ -1,4 +1,4 @@
-// ~/src/rewoo/cli.ts
+// ~/src/ReWOO/cli.ts
 
 import dotenv from 'dotenv';
 import readline from 'readline';

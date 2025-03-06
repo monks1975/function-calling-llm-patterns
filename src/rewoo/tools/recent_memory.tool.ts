@@ -1,4 +1,4 @@
-// ~/src/rewoo/tools/recent_memory.tool.ts
+// ~/src/ReWOO/tools/recent_memory.tool.ts
 
 import { PostgresDatabase } from '../db/postgres_database';
 
