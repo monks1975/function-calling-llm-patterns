@@ -13,7 +13,7 @@ const solver_template =
 
 Your response should always include:
 
-1. A brief summary of key evidence points
+1. A brief summary of key evidence points. Each evidence point should be in its own paragraph- do not mix them together as we want the user to see them as distinct information.
 2. A final answer that directly addresses the task
 
 Here are examples of how to structure your responses:
@@ -126,9 +126,8 @@ This growth is further supported by an evolving regulatory landscape, including 
 
 Remember to:
 - Use markdown formatting for clarity
-- Keep summaries concise but informative
-- Structure final answers logically
-- Support conclusions with evidence`;
+- Structure final answers logically, following the evidence chain of thought
+- Support your conclusions with evidence`;
 
 // Template for the user prompt
 // prettier-ignore
