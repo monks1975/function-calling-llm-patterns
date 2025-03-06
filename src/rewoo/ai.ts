@@ -1,9 +1,7 @@
-// ~/src/PlanExecute/ai.ts
+// ~/src/rewoo/ai.ts
 // class for AI generation tasks
 
 import OpenAI from 'openai';
-
-import type { Moderator } from './moderation';
 
 import type {
   ChatCompletionMessageParam,
@@ -19,11 +17,6 @@ export interface AiConfig {
   temperature?: number;
   timeout_ms?: number;
   max_retries?: number;
-  moderator?: Moderator;
-  moderation_config?: {
-    blocked_message?: string;
-    safeguarding_message?: string;
-  };
 }
 
 export interface AiRetryNotification {
@@ -70,15 +63,7 @@ export class ContentModerationError extends AiError {
 
 export class AiGenerate {
   protected readonly openai: OpenAI;
-  protected readonly config: Required<
-    Omit<AiConfig, 'moderator' | 'moderation_config'>
-  > & {
-    moderator?: Moderator;
-    moderation_config?: {
-      blocked_message?: string;
-      safeguarding_message?: string;
-    };
-  };
+  protected readonly config: Required<AiConfig>;
 
   protected abort_controller: AbortController | null = null;
   protected messages: ChatCompletionMessageParam[] = [];
@@ -97,11 +82,6 @@ export class AiGenerate {
       max_retries: config.max_retries ?? 3,
       base_url: config.base_url ?? 'https://api.openai.com/v1',
       api_key: config.api_key,
-      moderator: config.moderator,
-      moderation_config: {
-        blocked_message: config.moderation_config?.blocked_message,
-        safeguarding_message: config.moderation_config?.safeguarding_message,
-      },
     };
   }
 
@@ -266,6 +246,19 @@ export class AiGenerate {
 
     await new Promise((resolve) => setTimeout(resolve, backoff_ms));
     return true;
+  }
+
+  public async get_embedding(text: string): Promise<number[]> {
+    try {
+      const response = await this.openai.embeddings.create({
+        model: 'text-embedding-ada-002',
+        input: text,
+      });
+      return response.data[0].embedding;
+    } catch (error) {
+      console.error('Error getting embedding:', error);
+      throw error;
+    }
   }
 
   public abort(): void {
