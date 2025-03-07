@@ -25,6 +25,7 @@ export class Worker {
 
     // Get the tool and execute it
     const tool = this.tools.get(step.tool);
+
     if (!tool) {
       console.warn(`Tool "${step.tool}" not found, using fallback AI`);
       return this.execute_fallback(step.tool, processed_args);
