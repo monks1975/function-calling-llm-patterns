@@ -4,7 +4,7 @@ import Handlebars from 'handlebars';
 
 import { AiGenerate, type AiConfig } from './ai';
 
-import type { State, Tool } from './types';
+import type { State, Tool, ToolCallbacks } from './types';
 
 // Handlebars template for the planner prompt
 // prettier-ignore
@@ -78,22 +78,32 @@ Task: {{task}}`
 export class PlannerAgent {
   private ai: AiGenerate;
   private tools: Tool[];
+  private callbacks?: ToolCallbacks;
   private readonly regex_pattern =
     /Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]/g;
 
-  constructor(ai_config: AiConfig, tools: Tool[]) {
+  constructor(ai_config: AiConfig, tools: Tool[], callbacks?: ToolCallbacks) {
     this.ai = new AiGenerate(ai_config);
     this.tools = tools;
+    this.callbacks = callbacks;
   }
 
   async create_plan(task: string): Promise<Partial<State>> {
     const system_message = this.create_system_prompt();
     const user_message = this.create_user_prompt(task);
 
-    const result = await this.ai.get_completion([
-      { role: 'system', content: system_message },
-      { role: 'user', content: user_message },
-    ]);
+    // get the plan from the AI
+    const result = await this.ai.get_completion(
+      [
+        { role: 'system', content: system_message },
+        { role: 'user', content: user_message },
+      ],
+      undefined,
+      {
+        onCompletion: (completion) =>
+          this.callbacks?.onCompletion?.(completion),
+      }
+    );
 
     // Parse the plan using regex
     const matches = Array.from(result.matchAll(this.regex_pattern));

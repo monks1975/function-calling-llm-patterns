@@ -3,10 +3,11 @@
 
 import OpenAI from 'openai';
 
+import type { AiRetryNotification, AiCallbacks } from './types';
+
 import type {
   ChatCompletionMessageParam,
   ChatCompletionCreateParamsBase,
-  ChatCompletion,
 } from 'openai/resources/chat/completions';
 
 export interface AiConfig {
@@ -17,21 +18,6 @@ export interface AiConfig {
   temperature?: number;
   timeout_ms?: number;
   max_retries?: number;
-}
-
-export interface AiRetryNotification {
-  type: 'retry';
-  attempt: number;
-  backoff_ms: number;
-  error: string;
-  status?: number;
-  headers?: Record<string, string>;
-  errorDetails?: Record<string, any>;
-}
-
-export interface AiCallbacks {
-  onRetry?: (notification: AiRetryNotification) => void;
-  onCompletion?: (completion: ChatCompletion) => void;
 }
 
 export class AiError extends Error {

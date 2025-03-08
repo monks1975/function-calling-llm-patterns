@@ -7,7 +7,8 @@ import { SolverAgent } from './solver';
 import { Worker } from './worker';
 
 import type { AiConfig } from './ai';
-import type { EvidenceRecord, ReWOOCallbacks, State, Tool } from './types';
+import type { EvidenceRecord, State } from './types';
+import type { ReWOOCallbacks, Tool, ToolCallbacks } from './types';
 
 export class ReWOO {
   private planner: PlannerAgent;
@@ -16,9 +17,38 @@ export class ReWOO {
   private callbacks?: ReWOOCallbacks;
   private state: State = { session_id: uuid(), task: '' };
 
+  private create_tool_callbacks(callbacks?: ReWOOCallbacks): ToolCallbacks {
+    return {
+      onCompletion: (completion) => {
+        // Log usage data
+        const usage = completion.usage;
+        console.log(`📊 Completion Usage:
+                Prompt tokens: ${usage?.prompt_tokens}
+                Completion tokens: ${usage?.completion_tokens}
+                Total tokens: ${usage?.total_tokens}
+                Model: ${completion.model}`);
+
+        callbacks?.onCompletion?.(completion);
+      },
+      onExecuteStart: (args) =>
+        callbacks?.onToolExecute?.(
+          { plan: '', variable: '', tool: '', args },
+          'started'
+        ),
+      onExecuteComplete: (result) =>
+        callbacks?.onToolExecute?.(
+          { plan: '', variable: '', tool: '', args: '' },
+          result
+        ),
+      onExecuteError: (error) => callbacks?.onError?.(error, this.state),
+    };
+  }
+
   constructor(ai_config: AiConfig, tools: Tool[], callbacks?: ReWOOCallbacks) {
-    this.planner = new PlannerAgent(ai_config, tools);
-    this.worker = new Worker(tools, ai_config);
+    const tool_callbacks = this.create_tool_callbacks(callbacks);
+
+    this.planner = new PlannerAgent(ai_config, tools, tool_callbacks);
+    this.worker = new Worker(tools, ai_config, tool_callbacks);
     this.solver = new SolverAgent(ai_config);
     this.callbacks = callbacks;
   }

@@ -1,6 +1,8 @@
 // ~/src/ReWOO/types.ts
 import { z } from 'zod';
 
+import type { ChatCompletion } from 'openai/resources/chat';
+
 // Step definition schema
 export const StepSchema = z.object({
   plan: z.string(),
@@ -29,11 +31,40 @@ export type State = z.infer<typeof StateSchema>;
 export interface Tool {
   name: string;
   description: string;
+  callbacks?: ToolCallbacks;
   execute(args: string): Promise<string>;
 }
 
-// Callbacks for handling events
-export interface ReWOOCallbacks {
+// Base completion type used throughout the application
+export type CompletionWithRequestId = ChatCompletion & {
+  _request_id?: string | null;
+};
+
+export interface AiRetryNotification {
+  type: 'retry';
+  attempt: number;
+  backoff_ms: number;
+  error: string;
+  status?: number;
+  headers?: Record<string, string>;
+  errorDetails?: Record<string, any>;
+}
+
+// Core callbacks for AI operations
+export interface AiCallbacks {
+  onRetry?: (notification: AiRetryNotification) => void;
+  onCompletion?: (completion: CompletionWithRequestId) => void;
+}
+
+// Tool-specific callbacks extend AI callbacks
+export interface ToolCallbacks extends AiCallbacks {
+  onExecuteStart?: (args: string) => void;
+  onExecuteComplete?: (result: string) => void;
+  onExecuteError?: (error: Error) => void;
+}
+
+// ReWOO-specific callbacks extend AI callbacks
+export interface ReWOOCallbacks extends AiCallbacks {
   onPlan?: (state: State) => void;
   onToolExecute?: (step: Step, result: string) => void;
   onSolve?: (state: State) => void;

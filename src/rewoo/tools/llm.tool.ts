@@ -2,19 +2,39 @@
 
 import { AiGenerate, type AiConfig } from '../ai';
 
-import type { Tool } from '../types';
+import type { Tool, ToolCallbacks } from '../types';
 
 export class LlmTool implements Tool {
   name = 'LLM';
   description =
     'A pretrained LLM like yourself. Useful for general knowledge and reasoning.';
   private ai: AiGenerate;
+  callbacks?: ToolCallbacks;
 
-  constructor(ai_config: AiConfig) {
+  constructor(ai_config: AiConfig, callbacks?: ToolCallbacks) {
     this.ai = new AiGenerate(ai_config);
+    this.callbacks = callbacks;
   }
 
   async execute(args: string): Promise<string> {
-    return await this.ai.get_completion([{ role: 'user', content: args }]);
+    try {
+      this.callbacks?.onExecuteStart?.(args);
+
+      const result = await this.ai.get_completion(
+        [{ role: 'user', content: args }],
+        undefined,
+        {
+          onCompletion: (completion) =>
+            this.callbacks?.onCompletion?.(completion),
+        }
+      );
+
+      this.callbacks?.onExecuteComplete?.(result);
+
+      return result;
+    } catch (error) {
+      this.callbacks?.onExecuteError?.(error as Error);
+      throw error;
+    }
   }
 }

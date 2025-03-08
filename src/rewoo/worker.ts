@@ -2,14 +2,30 @@
 
 import { AiGenerate, type AiConfig } from './ai';
 
-import type { Step, Tool } from './types';
+import type { Step, Tool, ToolCallbacks } from './types';
 
 export class Worker {
   private tools: Map<string, Tool>;
   private fallback_ai: AiGenerate;
+  private tool_callbacks?: ToolCallbacks;
 
-  constructor(tools: Tool[], ai_config: AiConfig) {
-    this.tools = new Map(tools.map((tool) => [tool.name, tool]));
+  constructor(
+    tools: Tool[],
+    ai_config: AiConfig,
+    tool_callbacks?: ToolCallbacks
+  ) {
+    this.tool_callbacks = tool_callbacks;
+
+    this.tools = new Map(
+      tools.map((tool) => {
+        // Attach callbacks to each tool
+        if (tool.callbacks === undefined) {
+          tool.callbacks = this.tool_callbacks;
+        }
+        return [tool.name, tool];
+      })
+    );
+
     this.fallback_ai = new AiGenerate(ai_config);
   }
 
@@ -43,14 +59,21 @@ export class Worker {
     tool_name: string,
     args: string
   ): Promise<string> {
-    // Use the AI as a fallback when a tool fails
+    this.tool_callbacks?.onExecuteStart?.(args);
+
     const content = `The tool "${tool_name}" failed to execute with args: "${args}". 
     Please provide the best possible answer using your knowledge.`;
 
-    const result = await this.fallback_ai.get_completion([
-      { role: 'user', content },
-    ]);
+    const result = await this.fallback_ai.get_completion(
+      [{ role: 'user', content }],
+      undefined,
+      {
+        onCompletion: (completion) =>
+          this.tool_callbacks?.onCompletion?.(completion),
+      }
+    );
 
+    this.tool_callbacks?.onExecuteComplete?.(result);
     return `(Fallback) ${result}`;
   }
 }
