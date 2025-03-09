@@ -1,14 +1,12 @@
 // ~/src/ReWOO/rewoo.ts
-
-/*
- * Event System Architecture:
- * - Built on Node's EventEmitter for pub/sub event handling
- * - Two-layer event system:
- *   1. Low-level tool events (tool_start, tool_complete, error)
- *   2. High-level process events (plan, solve)
- * - Callbacks can be registered for granular control
- * - Each tool gets its own event emitter instance
- */
+//
+// Event System Architecture:
+// - Built on Node's EventEmitter for pub/sub event handling
+// - Two-layer event system:
+//   1. Low-level tool events (tool_start, tool_complete, error)
+//   2. High-level process events (plan, solve)
+// - Callbacks can be registered for granular control
+// - Each tool gets its own event emitter instance
 
 import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
