@@ -89,29 +89,71 @@ export class PlannerAgent {
   }
 
   async create_plan(task: string): Promise<Partial<State>> {
-    const system_message = this.create_system_prompt();
-    const user_message = this.create_user_prompt(task);
+    try {
+      this.callbacks?.onExecuteStart?.('Creating execution plan');
 
-    // get the plan from the AI
-    const result = await this.ai.get_completion(
-      [
-        { role: 'system', content: system_message },
-        { role: 'user', content: user_message },
-      ],
-      undefined,
-      {
-        onCompletion: (completion) =>
-          this.callbacks?.onCompletion?.(completion),
+      const system_message = this.create_system_prompt();
+      const user_message = this.create_user_prompt(task);
+
+      // Get the plan from the AI
+      const result = await this.ai.get_completion(
+        [
+          { role: 'system', content: system_message },
+          { role: 'user', content: user_message },
+        ],
+        undefined,
+        {
+          onCompletion: (completion) => {
+            this.callbacks?.onCompletion?.(completion, 'planner');
+          },
+        }
+      );
+
+      // Parse the plan using regex
+      const matches = Array.from(result.matchAll(this.regex_pattern));
+      let plan_result: Partial<State>;
+
+      if (matches.length === 0) {
+        // Fallback to ensure at least one step
+        plan_result = {
+          plan_string: result,
+          steps: [
+            {
+              plan: 'Get information about the topic',
+              variable: '#E1',
+              tool: 'LLM',
+              args: task,
+            },
+          ],
+        };
+
+        this.callbacks?.onExecuteComplete?.('Created fallback plan');
+      } else {
+        const steps = matches.map((match) => ({
+          plan: match[1].trim(),
+          variable: match[2].trim(),
+          tool: match[3].trim(),
+          args: match[4].trim(),
+        }));
+
+        plan_result = {
+          plan_string: result,
+          steps,
+        };
+
+        this.callbacks?.onExecuteComplete?.(
+          `Created plan with ${steps.length} steps`
+        );
       }
-    );
 
-    // Parse the plan using regex
-    const matches = Array.from(result.matchAll(this.regex_pattern));
+      return plan_result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.callbacks?.onExecuteError?.(err);
 
-    if (matches.length === 0) {
-      // Fallback to ensure at least one step
+      // Return a minimal fallback plan
       return {
-        plan_string: result,
+        plan_string: 'Error creating plan, using fallback',
         steps: [
           {
             plan: 'Get information about the topic',
@@ -122,18 +164,6 @@ export class PlannerAgent {
         ],
       };
     }
-
-    const steps = matches.map((match) => ({
-      plan: match[1].trim(),
-      variable: match[2].trim(),
-      tool: match[3].trim(),
-      args: match[4].trim(),
-    }));
-
-    return {
-      plan_string: result,
-      steps,
-    };
   }
 
   private create_system_prompt(): string {

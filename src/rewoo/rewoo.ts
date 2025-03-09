@@ -1,5 +1,16 @@
 // ~/src/ReWOO/rewoo.ts
 
+/*
+ * Event System Architecture:
+ * - Built on Node's EventEmitter for pub/sub event handling
+ * - Two-layer event system:
+ *   1. Low-level tool events (tool_start, tool_complete, error)
+ *   2. High-level process events (plan, solve)
+ * - Callbacks can be registered for granular control
+ * - Each tool gets its own event emitter instance
+ */
+
+import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
 
 import { PlannerAgent } from './planner';
@@ -8,49 +19,176 @@ import { Worker } from './worker';
 
 import type { AiConfig } from './ai';
 import type { EvidenceRecord, State } from './types';
-import type { ReWOOCallbacks, Tool, ToolCallbacks } from './types';
+import type { ExecutionEvent, ExecutionContext } from './types';
+import type { ReWOOCallbacks, ReWOOEventEmitter, ReWOOEventMap } from './types';
+import type { Tool, ToolCallbacks } from './types';
 
-export class ReWOO {
+export class ReWOO extends EventEmitter implements ReWOOEventEmitter {
   private planner: PlannerAgent;
   private worker: Worker;
   private solver: SolverAgent;
   private callbacks?: ReWOOCallbacks;
   private state: State = { session_id: uuid(), task: '' };
-
-  private create_tool_callbacks(callbacks?: ReWOOCallbacks): ToolCallbacks {
-    return {
-      onCompletion: (completion) => {
-        // Log usage data
-        const usage = completion.usage;
-        console.log(`📊 Completion Usage:
-                Prompt tokens: ${usage?.prompt_tokens}
-                Completion tokens: ${usage?.completion_tokens}
-                Total tokens: ${usage?.total_tokens}
-                Model: ${completion.model}`);
-
-        callbacks?.onCompletion?.(completion);
-      },
-      onExecuteStart: (args) =>
-        callbacks?.onToolExecute?.(
-          { plan: '', variable: '', tool: '', args },
-          'started'
-        ),
-      onExecuteComplete: (result) =>
-        callbacks?.onToolExecute?.(
-          { plan: '', variable: '', tool: '', args: '' },
-          result
-        ),
-      onExecuteError: (error) => callbacks?.onError?.(error, this.state),
-    };
-  }
+  private tools: Tool[] = [];
 
   constructor(ai_config: AiConfig, tools: Tool[], callbacks?: ReWOOCallbacks) {
-    const tool_callbacks = this.create_tool_callbacks(callbacks);
+    super();
+    this.callbacks = callbacks;
+    this.tools = tools;
+
+    // Increase event listener limit to handle tool-specific events
+    this.setMaxListeners(tools.length + 10);
+
+    // Tool callback adapter maps low-level tool events to the event system
+    // Each tool operation (start, complete, error) emits a corresponding event
+    const tool_callbacks: ToolCallbacks = {
+      onExecuteStart: (args) => {
+        this.emit_execution_event({
+          type: 'tool_start',
+          context: this.create_execution_context({ args }),
+        });
+      },
+      onExecuteComplete: (result, step) => {
+        this.emit_execution_event({
+          type: 'tool_complete',
+          context: this.create_execution_context({ step }),
+          data: result,
+        });
+      },
+      onExecuteError: (error) => {
+        this.emit_execution_event({
+          type: 'error',
+          context: this.create_execution_context(),
+          error,
+        });
+      },
+      onCompletion: (completion, source = 'tool', tool_name?: string) => {
+        const tokens = completion.usage
+          ? {
+              prompt: completion.usage.prompt_tokens,
+              completion: completion.usage.completion_tokens,
+              total: completion.usage.total_tokens,
+            }
+          : undefined;
+
+        if (tokens) {
+          if (!this.state.token_usage) {
+            this.state.token_usage = [];
+          }
+          this.state.token_usage.push({
+            source,
+            tool_name,
+            prompt_tokens: tokens.prompt,
+            completion_tokens: tokens.completion,
+            total_tokens: tokens.total,
+          });
+        }
+
+        this.emit_execution_event({
+          type: 'completion',
+          context: this.create_execution_context(),
+          data: {
+            completion,
+            source,
+            tool_name,
+            tokens,
+          },
+        });
+      },
+    };
+
+    // Each tool gets access to the event emitter for publishing tool-specific events
+    tools.forEach((tool) => {
+      tool.emitter = this;
+    });
 
     this.planner = new PlannerAgent(ai_config, tools, tool_callbacks);
     this.worker = new Worker(tools, ai_config, tool_callbacks);
-    this.solver = new SolverAgent(ai_config);
-    this.callbacks = callbacks;
+    this.solver = new SolverAgent(ai_config, tool_callbacks);
+  }
+
+  // Override emit to ensure all events also trigger the generic onEvent callback
+  emit<K extends keyof ReWOOEventMap>(
+    event: K,
+    args: ReWOOEventMap[K]
+  ): boolean {
+    this.callbacks?.onEvent?.(args);
+    return super.emit(event, args);
+  }
+
+  // Central event dispatcher that maps execution events to specific callbacks
+  // Handles both tool events and process lifecycle events
+  private emit_execution_event(event: ExecutionEvent): void {
+    // Emit the event
+    this.emit('rewoo:event', event);
+
+    // Map events to callbacks
+    switch (event.type) {
+      case 'plan':
+        this.callbacks?.onPlan?.(event.context.state!);
+        break;
+      case 'tool_complete':
+        if (event.context.step) {
+          this.callbacks?.onToolExecute?.(
+            event.context.step,
+            event.data as string
+          );
+        }
+        break;
+      case 'solve':
+        this.callbacks?.onSolve?.(event.context.state!);
+        break;
+      case 'error':
+        if (event.error) {
+          this.callbacks?.onError?.(event.error, event.context.state!);
+        }
+        break;
+    }
+  }
+
+  // Creates consistent execution context for all events
+  // Ensures events have access to current state and session info
+  private create_execution_context(
+    partial?: Partial<ExecutionContext>
+  ): ExecutionContext {
+    return {
+      session_id: this.state.session_id,
+      task: this.state.task,
+      state: this.state,
+      ...partial,
+    };
+  }
+
+  // Comprehensive cleanup of event listeners and references
+  // Prevents memory leaks and ensures proper teardown
+  async cleanup(): Promise<void> {
+    // Remove all event listeners
+    this.removeAllListeners();
+
+    // Remove emitter references from tools
+    this.tools.forEach((tool) => {
+      tool.emitter = undefined;
+    });
+
+    // Clear tools array
+    this.tools = [];
+
+    // Cleanup components that might have their own cleanup needs
+    if ('cleanup' in this.worker && typeof this.worker.cleanup === 'function') {
+      await this.worker.cleanup();
+    }
+    if (
+      'cleanup' in this.planner &&
+      typeof this.planner.cleanup === 'function'
+    ) {
+      await this.planner.cleanup();
+    }
+    if ('cleanup' in this.solver && typeof this.solver.cleanup === 'function') {
+      await this.solver.cleanup();
+    }
+
+    // Clear callbacks
+    this.callbacks = undefined;
   }
 
   // Add getters
@@ -84,65 +222,64 @@ export class ReWOO {
       errors: [],
     };
 
-    console.log(`\n📋 Processing task: "${task}"`);
-
     try {
-      // Plan step
-      console.log('🧩 Creating execution plan...');
       const plan_result = await this.planner.create_plan(task);
       this.state = { ...this.state, ...plan_result };
-      this.callbacks?.onPlan?.(this.state);
 
-      // Execute tools if we have steps
+      this.emit_execution_event({
+        type: 'plan',
+        context: this.create_execution_context(),
+        data: plan_result,
+      });
+
       if (this.state.steps && this.state.steps.length > 0) {
         this.state.results = {};
-        console.log(`\n🔧 Executing ${this.state.steps.length} steps...`);
 
-        for (let i = 0; i < this.state.steps.length; i++) {
-          const step = this.state.steps[i];
-          console.log(
-            `\n📝 Step ${i + 1}/${this.state.steps.length}: ${step.tool} - ${
-              step.plan
-            }`
-          );
-
+        for (const step of this.state.steps) {
           try {
             const result = await this.worker.execute_step(
               step,
               this.state.results
             );
             this.state.results[step.variable] = result;
-            this.callbacks?.onToolExecute?.(step, result);
           } catch (error) {
-            console.error(`❌ Error executing step ${step.variable}: ${error}`);
-            // Continue with next step even if one fails
-            this.state.results[step.variable] = `Error: ${
-              error instanceof Error ? error.message : String(error)
-            }`;
+            const err =
+              error instanceof Error ? error : new Error(String(error));
+            this.state.results[step.variable] = `Error: ${err.message}`;
+
+            this.emit_execution_event({
+              type: 'error',
+              context: this.create_execution_context({ step }),
+              error: err,
+            });
           }
         }
       }
 
-      // Solve the task
-      console.log('\n🧠 Solving task based on collected information...');
       const solution = await this.solver.solve(this.state);
       this.state.result = solution;
-      this.callbacks?.onSolve?.(this.state);
+
+      this.emit_execution_event({
+        type: 'solve',
+        context: this.create_execution_context(),
+        data: solution,
+      });
 
       return this.state;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      console.error(`\n❌ Process error: ${err.message}`);
-      this.callbacks?.onError?.(err, this.state);
 
-      // Attempt to get a fallback solution even if errors occurred
+      this.emit_execution_event({
+        type: 'error',
+        context: this.create_execution_context(),
+        error: err,
+      });
+
       if (!this.state.result) {
-        console.log('\n🔄 Attempting fallback solution...');
         try {
           const fallback = await this.solver.solve(this.state);
           this.state.result = fallback;
         } catch (solveError) {
-          console.error(`\n❌ Fallback failed: ${solveError}`);
           this.state.result = 'Unable to complete the task due to errors.';
         }
       }

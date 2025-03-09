@@ -15,18 +15,25 @@ export class Worker {
     tool_callbacks?: ToolCallbacks
   ) {
     this.tool_callbacks = tool_callbacks;
-
-    this.tools = new Map(
-      tools.map((tool) => {
-        // Attach callbacks to each tool
-        if (tool.callbacks === undefined) {
-          tool.callbacks = this.tool_callbacks;
-        }
-        return [tool.name, tool];
-      })
-    );
-
     this.fallback_ai = new AiGenerate(ai_config);
+
+    // Initialize tools map with callbacks
+    this.tools = new Map(tools.map((tool) => [tool.name, tool]));
+  }
+
+  async cleanup(): Promise<void> {
+    // Clear callbacks
+    this.tool_callbacks = undefined;
+
+    // Clear tools map
+    this.tools.clear();
+
+    // Cleanup any tools that have cleanup methods
+    for (const tool of this.tools.values()) {
+      if ('cleanup' in tool && typeof tool.cleanup === 'function') {
+        await tool.cleanup();
+      }
+    }
   }
 
   async execute_step(
@@ -42,15 +49,27 @@ export class Worker {
     // Get the tool and execute it
     const tool = this.tools.get(step.tool);
 
-    if (!tool) {
-      console.warn(`Tool "${step.tool}" not found, using fallback AI`);
-      return this.execute_fallback(step.tool, processed_args);
-    }
+    this.tool_callbacks?.onExecuteStart?.(processed_args);
 
     try {
-      return await tool.execute(processed_args);
+      let result: string;
+
+      if (!tool) {
+        console.warn(`Tool "${step.tool}" not found, using fallback AI`);
+        result = await this.execute_fallback(step.tool, processed_args);
+      } else {
+        // If it's an LLM tool, ensure it has the callbacks
+        if (tool.name === 'LLM' && 'callbacks' in tool) {
+          tool.callbacks = this.tool_callbacks;
+        }
+        result = await tool.execute(processed_args);
+      }
+
+      this.tool_callbacks?.onExecuteComplete?.(result, step);
+      return result;
     } catch (error) {
-      console.error(`Error executing tool ${step.tool}: ${error}`);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.tool_callbacks?.onExecuteError?.(err);
       return this.execute_fallback(step.tool, processed_args);
     }
   }
@@ -59,8 +78,6 @@ export class Worker {
     tool_name: string,
     args: string
   ): Promise<string> {
-    this.tool_callbacks?.onExecuteStart?.(args);
-
     const content = `The tool "${tool_name}" failed to execute with args: "${args}". 
     Please provide the best possible answer using your knowledge.`;
 
@@ -68,12 +85,12 @@ export class Worker {
       [{ role: 'user', content }],
       undefined,
       {
-        onCompletion: (completion) =>
-          this.tool_callbacks?.onCompletion?.(completion),
+        onCompletion: (completion) => {
+          this.tool_callbacks?.onCompletion?.(completion, 'worker', tool_name);
+        },
       }
     );
 
-    this.tool_callbacks?.onExecuteComplete?.(result);
     return `(Fallback) ${result}`;
   }
 }

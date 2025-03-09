@@ -65,5 +65,33 @@ export function format_state_as_markdown(state: State): string {
     });
   }
 
+  // Token Usage section
+  if (state.token_usage?.length) {
+    md.push(`\n## Token Usage\n`);
+    md.push(`| Source | Tool | Prompt | Completion | Total |`);
+    md.push(`|--------|------|---------|------------|--------|`);
+    state.token_usage.forEach((usage) => {
+      md.push(
+        `| ${usage.source} | ${usage.tool_name || '-'} | ${
+          usage.prompt_tokens
+        } | ${usage.completion_tokens} | ${usage.total_tokens} |`
+      );
+    });
+
+    // Add totals row
+    const totals = state.token_usage.reduce(
+      (acc, curr) => ({
+        prompt_tokens: acc.prompt_tokens + curr.prompt_tokens,
+        completion_tokens: acc.completion_tokens + curr.completion_tokens,
+        total_tokens: acc.total_tokens + curr.total_tokens,
+      }),
+      { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+    );
+
+    md.push(
+      `| **Total** | - | **${totals.prompt_tokens}** | **${totals.completion_tokens}** | **${totals.total_tokens}** |`
+    );
+  }
+
   return md.join('\n');
 }

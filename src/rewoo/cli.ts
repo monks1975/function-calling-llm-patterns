@@ -48,9 +48,19 @@ function create_cli() {
     ai_config,
     [llm_tool, search_tool, memory_by_keyword_tool, recent_memory_tool],
     {
-      onPlan: (state) => console.log('\n🔍 Plan created'),
+      onPlan: (state) => {
+        console.log('\n🔍 Plan created:');
+        // if (state.steps) {
+        //   state.steps.forEach((step, index) => {
+        //     console.log(`  ${index + 1}. ${step.plan}`);
+        //     console.log(`     Tool: ${step.tool}[${step.args}]`);
+        //   });
+        // }
+      },
       onToolExecute: (step, result) => {
-        console.log(`\n🔧 Executed: ${step.tool}`);
+        console.log(`\n🔧 Executing step: ${step.variable}`);
+        console.log(`   Plan: ${step.plan}`);
+        console.log(`   Tool: ${step.tool}[${step.args}]`);
       },
       onSolve: async (state) => {
         console.log('\n✅ Solution found');
