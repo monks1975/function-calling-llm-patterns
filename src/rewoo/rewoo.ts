@@ -284,37 +284,4 @@ export class ReWOO extends EventEmitter implements ReWOOEventEmitter {
       return this.state;
     }
   }
-
-  get_execution_summary(): string {
-    if (!this.state.steps || !this.state.results) {
-      return 'No execution data available.';
-    }
-
-    let summary = `EXECUTION SUMMARY\n${'='.repeat(30)}\n`;
-    summary += `Task: ${this.state.task}\n\n`;
-
-    this.state.steps.forEach((step, index) => {
-      const result = this.state.results?.[step.variable];
-      const status = result
-        ? result.startsWith('Error:')
-          ? '❌'
-          : '✅'
-        : '⚠️';
-
-      summary += `Step ${index + 1}: ${status} ${step.variable}\n`;
-      summary += `  Plan: ${step.plan}\n`;
-      summary += `  Tool: ${step.tool}\n`;
-      summary += `  Args: ${step.args}\n`;
-      if (result) {
-        const truncated =
-          result.length > 100 ? result.substring(0, 100) + '...' : result;
-        summary += `  Result: ${truncated}\n`;
-      } else {
-        summary += `  Result: Not executed\n`;
-      }
-      summary += '\n';
-    });
-
-    return summary;
-  }
 }
