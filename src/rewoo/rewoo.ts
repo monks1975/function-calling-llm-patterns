@@ -36,8 +36,11 @@ export class ReWOO extends EventEmitter implements ReWOOEventEmitter {
     // Increase event listener limit to handle tool-specific events
     this.setMaxListeners(tools.length + 10);
 
+    // 1. Low-level tool events (tool_start, tool_complete, error)
+    // 2. High-level process events (plan, solve)
+
     // Tool callback adapter maps low-level tool events to the event system
-    // Each tool operation (start, complete, error) emits a corresponding event
+
     const tool_callbacks: ToolCallbacks = {
       onExecuteStart: (args) => {
         this.emit_execution_event({
