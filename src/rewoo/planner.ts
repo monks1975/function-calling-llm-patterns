@@ -4,7 +4,8 @@ import Handlebars from 'handlebars';
 
 import { AiGenerate, type AiConfig } from './ai';
 
-import type { State, Tool, ToolCallbacks } from './types';
+import type { EventBus } from './events';
+import type { State, Tool } from './types';
 
 // Handlebars template for the planner prompt
 // prettier-ignore
@@ -78,36 +79,38 @@ Task: {{task}}`
 export class PlannerAgent {
   private ai: AiGenerate;
   private tools: Tool[];
-  private callbacks?: ToolCallbacks;
+  private event_bus: EventBus;
   private readonly regex_pattern =
     /Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]/g;
 
-  constructor(ai_config: AiConfig, tools: Tool[], callbacks?: ToolCallbacks) {
-    this.ai = new AiGenerate(ai_config);
+  constructor(ai_config: AiConfig, tools: Tool[], event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus, 'planner');
     this.tools = tools;
-    this.callbacks = callbacks;
+    this.event_bus = event_bus;
   }
 
   async create_plan(task: string): Promise<Partial<State>> {
     try {
-      this.callbacks?.onExecuteStart?.('Creating execution plan');
+      // Emit planning start event
+      this.event_bus.emit({
+        type: 'tool_start',
+        step: {
+          plan: 'Creating execution plan',
+          variable: 'plan',
+          tool: 'planner',
+          args: task,
+        },
+        args: task,
+      });
 
       const system_message = this.create_system_prompt();
       const user_message = this.create_user_prompt(task);
 
       // Get the plan from the AI
-      const result = await this.ai.get_completion(
-        [
-          { role: 'system', content: system_message },
-          { role: 'user', content: user_message },
-        ],
-        undefined,
-        {
-          onCompletion: (completion) => {
-            this.callbacks?.onCompletion?.(completion, 'planner');
-          },
-        }
-      );
+      const result = await this.ai.get_completion([
+        { role: 'system', content: system_message },
+        { role: 'user', content: user_message },
+      ]);
 
       // Parse the plan using regex
       const matches = Array.from(result.matchAll(this.regex_pattern));
@@ -127,7 +130,17 @@ export class PlannerAgent {
           ],
         };
 
-        this.callbacks?.onExecuteComplete?.('Created fallback plan');
+        // Emit fallback plan event
+        this.event_bus.emit({
+          type: 'tool_complete',
+          step: {
+            plan: 'Creating execution plan',
+            variable: 'plan',
+            tool: 'planner',
+            args: task,
+          },
+          result: 'Created fallback plan',
+        });
       } else {
         const steps = matches.map((match) => ({
           plan: match[1].trim(),
@@ -141,18 +154,38 @@ export class PlannerAgent {
           steps,
         };
 
-        this.callbacks?.onExecuteComplete?.(
-          `Created plan with ${steps.length} steps`
-        );
+        // Emit plan created event
+        this.event_bus.emit({
+          type: 'tool_complete',
+          step: {
+            plan: 'Creating execution plan',
+            variable: 'plan',
+            tool: 'planner',
+            args: task,
+          },
+          result: `Created plan with ${steps.length} steps`,
+        });
       }
+
+      // Emit plan_created event with the plan data
+      this.event_bus.emit({
+        type: 'plan_created',
+        plan: plan_result,
+      });
 
       return plan_result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.callbacks?.onExecuteError?.(err);
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'plan_creation',
+      });
 
       // Return a minimal fallback plan
-      return {
+      const fallback_plan = {
         plan_string: 'Error creating plan, using fallback',
         steps: [
           {
@@ -163,6 +196,14 @@ export class PlannerAgent {
           },
         ],
       };
+
+      // Also emit the fallback plan
+      this.event_bus.emit({
+        type: 'plan_created',
+        plan: fallback_plan,
+      });
+
+      return fallback_plan;
     }
   }
 

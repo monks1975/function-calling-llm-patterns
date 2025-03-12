@@ -1,30 +1,23 @@
 // ~/src/ReWOO/worker.ts
 
 import { AiGenerate, type AiConfig } from './ai';
-
-import type { Step, Tool, ToolCallbacks } from './types';
+import type { EventBus } from './events';
+import type { Step, Tool } from './types';
 
 export class Worker {
   private tools: Map<string, Tool>;
   private fallback_ai: AiGenerate;
-  private tool_callbacks?: ToolCallbacks;
+  private event_bus: EventBus;
 
-  constructor(
-    tools: Tool[],
-    ai_config: AiConfig,
-    tool_callbacks?: ToolCallbacks
-  ) {
-    this.tool_callbacks = tool_callbacks;
-    this.fallback_ai = new AiGenerate(ai_config);
+  constructor(ai_config: AiConfig, tools: Tool[], event_bus: EventBus) {
+    this.fallback_ai = new AiGenerate(ai_config, event_bus);
+    this.event_bus = event_bus;
 
-    // Initialize tools map with callbacks
+    // Initialize tools map
     this.tools = new Map(tools.map((tool) => [tool.name, tool]));
   }
 
   async cleanup(): Promise<void> {
-    // Clear callbacks
-    this.tool_callbacks = undefined;
-
     // Clear tools map
     this.tools.clear();
 
@@ -49,7 +42,12 @@ export class Worker {
     // Get the tool and execute it
     const tool = this.tools.get(step.tool);
 
-    this.tool_callbacks?.onExecuteStart?.(processed_args);
+    // Emit tool start event
+    this.event_bus.emit({
+      type: 'tool_start',
+      step,
+      args: processed_args,
+    });
 
     try {
       let result: string;
@@ -58,18 +56,29 @@ export class Worker {
         console.warn(`Tool "${step.tool}" not found, using fallback AI`);
         result = await this.execute_fallback(step.tool, processed_args);
       } else {
-        // If it's an LLM tool, ensure it has the callbacks
-        if (tool.name === 'LLM' && 'callbacks' in tool) {
-          tool.callbacks = this.tool_callbacks;
-        }
         result = await tool.execute(processed_args);
       }
 
-      this.tool_callbacks?.onExecuteComplete?.(result, step);
+      // Emit tool complete event
+      this.event_bus.emit({
+        type: 'tool_complete',
+        step,
+        result,
+      });
+
       return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.tool_callbacks?.onExecuteError?.(err);
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'tool_execution',
+        step,
+      });
+
+      // Use fallback on error
       return this.execute_fallback(step.tool, processed_args);
     }
   }
@@ -81,15 +90,17 @@ export class Worker {
     const content = `The tool "${tool_name}" failed to execute with args: "${args}". 
     Please provide the best possible answer using your knowledge.`;
 
-    const result = await this.fallback_ai.get_completion(
-      [{ role: 'user', content }],
-      undefined,
-      {
-        onCompletion: (completion) => {
-          this.tool_callbacks?.onCompletion?.(completion, 'worker', tool_name);
-        },
-      }
-    );
+    // Emit fallback start event
+    this.event_bus.emit({
+      type: 'info',
+      message: `Using fallback for tool "${tool_name}"`,
+    });
+
+    const result = await this.fallback_ai.get_completion([
+      { role: 'user', content },
+    ]);
+
+    // The fallback AI will emit its own completion event via the event_bus
 
     return `(Fallback) ${result}`;
   }

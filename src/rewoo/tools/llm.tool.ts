@@ -1,41 +1,38 @@
 // ~/src/ReWOO/tools/llm.tool.ts
 
 import { AiGenerate, type AiConfig } from '../ai';
-import type { Tool, ReWOOEventEmitter, ToolCallbacks } from '../types';
+
+import type { EventBus } from '../events';
+import type { Tool } from '../types';
 
 export class LlmTool implements Tool {
   name = 'LLM';
   description =
     'A pretrained LLM like yourself. Useful for general knowledge and reasoning.';
   private ai: AiGenerate;
-  emitter?: ReWOOEventEmitter;
-  private callbacks?: ToolCallbacks;
 
-  constructor(ai_config: AiConfig, callbacks?: ToolCallbacks) {
-    this.ai = new AiGenerate(ai_config);
-    this.callbacks = callbacks;
+  constructor(ai_config: AiConfig, private event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus);
   }
 
   async execute(args: string): Promise<string> {
     try {
-      this.callbacks?.onExecuteStart?.(args);
+      const result = await this.ai.get_completion([
+        { role: 'user', content: args },
+      ]);
 
-      const result = await this.ai.get_completion(
-        [{ role: 'user', content: args }],
-        undefined,
-        {
-          onCompletion: (completion) => {
-            this.callbacks?.onCompletion?.(completion, 'tool', this.name);
-          },
-        }
-      );
-
-      this.callbacks?.onExecuteComplete?.(result);
       return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.callbacks?.onExecuteError?.(err);
-      throw err;
+
+      // Emit error event directly
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'llm_tool',
+      });
+
+      throw err; // Let Worker handle the error for fallback
     }
   }
 }

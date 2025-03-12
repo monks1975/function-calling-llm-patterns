@@ -4,7 +4,8 @@ import Handlebars from 'handlebars';
 
 import { AiGenerate, type AiConfig } from './ai';
 
-import type { State, ToolCallbacks } from './types';
+import type { EventBus } from './events';
+import type { State } from './types';
 
 // Template for the system prompt
 const solver_template = `You are an expert at solving tasks using provided evidence.
@@ -26,16 +27,26 @@ First, briefly summarize the key information from each piece of evidence. Then p
 
 export class SolverAgent {
   private ai: AiGenerate;
-  private callbacks?: ToolCallbacks;
+  private event_bus: EventBus;
 
-  constructor(ai_config: AiConfig, callbacks?: ToolCallbacks) {
-    this.ai = new AiGenerate(ai_config);
-    this.callbacks = callbacks;
+  constructor(ai_config: AiConfig, event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus, 'solver');
+    this.event_bus = event_bus;
   }
 
   async solve(state: State): Promise<string> {
     try {
-      this.callbacks?.onExecuteStart?.('Solving task with collected evidence');
+      // Emit solver start event
+      this.event_bus.emit({
+        type: 'tool_start',
+        step: {
+          plan: 'Solving task with collected evidence',
+          variable: 'solution',
+          tool: 'solver',
+          args: state.task,
+        },
+        args: state.task,
+      });
 
       // Format the plan and evidence for better visibility
       let plan_with_evidence = '';
@@ -61,24 +72,44 @@ export class SolverAgent {
         task: state.task,
       });
 
-      const result = await this.ai.get_completion(
-        [
-          { role: 'system', content: solver_template },
-          { role: 'user', content: user_prompt },
-        ],
-        undefined,
-        {
-          onCompletion: (completion) => {
-            this.callbacks?.onCompletion?.(completion, 'solver');
-          },
-        }
-      );
+      const result = await this.ai.get_completion([
+        { role: 'system', content: solver_template },
+        { role: 'user', content: user_prompt },
+      ]);
 
-      this.callbacks?.onExecuteComplete?.('Generated solution');
+      // Emit solver complete event
+      this.event_bus.emit({
+        type: 'tool_complete',
+        step: {
+          plan: 'Solving task with collected evidence',
+          variable: 'solution',
+          tool: 'solver',
+          args: state.task,
+        },
+        result: 'Generated solution',
+      });
+
+      // Emit solution found event
+      this.event_bus.emit({
+        type: 'solution_found',
+        solution: result,
+        state: {
+          ...state,
+          result,
+        },
+      });
+
       return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.callbacks?.onExecuteError?.(err);
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'solution_generation',
+      });
+
       throw err;
     }
   }

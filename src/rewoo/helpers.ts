@@ -68,13 +68,11 @@ export function format_state_as_markdown(state: State): string {
   // Token Usage section
   if (state.token_usage?.length) {
     md.push(`\n## Token Usage\n`);
-    md.push(`| Source | Tool | Prompt | Completion | Total |`);
-    md.push(`|--------|------|---------|------------|--------|`);
+    md.push(`| Source | Prompt | Completion | Total |`);
+    md.push(`|--------|---------|------------|--------|`);
     state.token_usage.forEach((usage) => {
       md.push(
-        `| ${usage.source} | ${usage.tool_name || '-'} | ${
-          usage.prompt_tokens
-        } | ${usage.completion_tokens} | ${usage.total_tokens} |`
+        `| ${usage.source} | ${usage.prompt_tokens} | ${usage.completion_tokens} | ${usage.total_tokens} |`
       );
     });
 

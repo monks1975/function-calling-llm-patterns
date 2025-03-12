@@ -4,6 +4,7 @@
 import OpenAI from 'openai';
 
 import type { AiRetryNotification, AiCallbacks } from './types';
+import type { EventBus } from './events';
 
 import type {
   ChatCompletionMessageParam,
@@ -49,18 +50,27 @@ export class ContentModerationError extends AiError {
 
 export class AiGenerate {
   protected readonly openai: OpenAI;
-  protected readonly config: Required<AiConfig>;
+  protected readonly ai_config: Required<AiConfig>;
+  protected readonly name?: 'planner' | 'solver' | 'llm';
 
   protected abort_controller: AbortController | null = null;
   protected messages: ChatCompletionMessageParam[] = [];
 
-  constructor(config: AiConfig) {
+  private event_bus?: EventBus;
+
+  constructor(
+    config: AiConfig,
+    event_bus?: EventBus,
+    name?: 'planner' | 'solver' | 'llm'
+  ) {
     this.openai = new OpenAI({
       baseURL: config.base_url,
       apiKey: config.api_key,
     });
+    this.event_bus = event_bus;
+    this.name = name;
 
-    this.config = {
+    this.ai_config = {
       model: config.model,
       max_tokens: config.max_tokens ?? 8192,
       temperature: config.temperature ?? 0.5,
@@ -79,7 +89,7 @@ export class AiGenerate {
     let attempt = 0;
     let last_error: AiError | Error | null = null;
 
-    while (attempt < this.config.max_retries) {
+    while (attempt < this.ai_config.max_retries) {
       try {
         return await this.execute_with_timeout(
           messages,
@@ -107,6 +117,21 @@ export class AiGenerate {
             error.message.includes('flagged') ||
             error.message.includes('moderation')
           ) {
+            // Emit moderation error event
+            if (this.event_bus) {
+              this.event_bus.emit({
+                type: 'error',
+                error: new ContentModerationError(
+                  error.message,
+                  attempt + 1,
+                  status,
+                  headers,
+                  errorDetails
+                ),
+                context: 'content_moderation',
+              });
+            }
+
             // Don't retry content moderation errors
             throw new ContentModerationError(
               error.message,
@@ -130,6 +155,14 @@ export class AiGenerate {
         }
 
         if (last_error.name === 'AbortError') {
+          // Emit abort event
+          if (this.event_bus) {
+            this.event_bus.emit({
+              type: 'error',
+              error: last_error,
+              context: 'request_aborted',
+            });
+          }
           throw last_error;
         }
 
@@ -139,14 +172,24 @@ export class AiGenerate {
       }
     }
 
-    if (last_error instanceof AiError) {
-      throw last_error;
-    } else {
-      throw new AiError(
-        `Failed after ${this.config.max_retries} attempts. Last error: ${last_error?.message}`,
-        attempt
-      );
+    const final_error =
+      last_error instanceof AiError
+        ? last_error
+        : new AiError(
+            `Failed after ${this.ai_config.max_retries} attempts. Last error: ${last_error?.message}`,
+            attempt
+          );
+
+    // Emit final failure event
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'error',
+        error: final_error,
+        context: 'max_retries_exceeded',
+      });
     }
+
+    throw final_error;
   }
 
   protected async execute_with_timeout(
@@ -159,10 +202,10 @@ export class AiGenerate {
     const timeout_promise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         const error = new AiError(
-          `Request timed out after ${this.config.timeout_ms}ms`
+          `Request timed out after ${this.ai_config.timeout_ms}ms`
         );
         reject(error);
-      }, this.config.timeout_ms);
+      }, this.ai_config.timeout_ms);
     });
 
     try {
@@ -182,10 +225,10 @@ export class AiGenerate {
   ): Promise<string> {
     const completion = await this.openai.chat.completions.create(
       {
-        model: this.config.model,
+        model: this.ai_config.model,
         messages,
-        max_tokens: this.config.max_tokens,
-        temperature: this.config.temperature,
+        max_tokens: this.ai_config.max_tokens,
+        temperature: this.ai_config.temperature,
         response_format: response_format,
       },
       {
@@ -193,7 +236,16 @@ export class AiGenerate {
       }
     );
 
-    // Notify via callback instead of event
+    // Support both event bus and callbacks
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'completion',
+        completion,
+        source: this.name ?? 'llm',
+      });
+    }
+
+    // Maintain backward compatibility with callbacks
     callbacks?.onCompletion?.(completion);
 
     return completion.choices[0]?.message?.content ?? '';
@@ -204,7 +256,7 @@ export class AiGenerate {
     error: Error,
     callbacks?: AiCallbacks
   ): Promise<boolean> {
-    if (attempt >= this.config.max_retries) {
+    if (attempt >= this.ai_config.max_retries) {
       return false;
     }
 
@@ -227,7 +279,17 @@ export class AiGenerate {
       notification.errorDetails = error.errorDetails;
     }
 
-    // Notify via callback instead of event
+    // Support both event bus and callbacks
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'retry',
+        attempt,
+        error,
+        backoff_ms,
+      });
+    }
+
+    // Maintain backward compatibility with callbacks
     callbacks?.onRetry?.(notification);
 
     await new Promise((resolve) => setTimeout(resolve, backoff_ms));
@@ -242,6 +304,17 @@ export class AiGenerate {
       });
       return response.data[0].embedding;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Emit embedding error event
+      if (this.event_bus) {
+        this.event_bus.emit({
+          type: 'error',
+          error: err,
+          context: 'embedding_generation',
+        });
+      }
+
       console.error('Error getting embedding:', error);
       throw error;
     }
@@ -249,6 +322,14 @@ export class AiGenerate {
 
   public abort(): void {
     this.abort_controller?.abort();
+
+    // Emit abort event
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'info',
+        message: 'Request aborted by user',
+      });
+    }
   }
 
   public add_message(message: ChatCompletionMessageParam): void {

@@ -1,10 +1,12 @@
 // ~/src/ReWOO/cli.ts
 
+import { Subscription } from 'rxjs';
 import dotenv from 'dotenv';
-import readline from 'readline';
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
 
+import { event_bus } from './events';
 import { format_state_as_markdown } from './helpers';
 import { MemoryService } from './services/memory_service';
 import { ReWOO } from './rewoo';
@@ -36,44 +38,93 @@ function create_cli() {
   };
 
   // Initialize tools
-  const llm_tool = new LlmTool(ai_config);
+  const llm_tool = new LlmTool(ai_config, event_bus);
   const search_tool = new SearchTool(process.env.TAVILY_API_KEY || '');
   const memory_by_keyword_tool = new MemoryByKeywordTool(ai_embedding_config);
   const recent_memory_tool = new RecentMemoryTool();
 
   const memory_service = new MemoryService(ai_embedding_config);
+  const subscriptions = new Subscription();
 
   // Create ReWOO instance
-  const rewoo = new ReWOO(
-    ai_config,
-    [llm_tool, search_tool, memory_by_keyword_tool, recent_memory_tool],
-    {
-      onPlan: (state) => {
-        console.log('\n🔍 Plan created:');
-        // if (state.steps) {
-        //   state.steps.forEach((step, index) => {
-        //     console.log(`  ${index + 1}. ${step.plan}`);
-        //     console.log(`     Tool: ${step.tool}[${step.args}]`);
-        //   });
-        // }
-      },
-      onToolExecute: (step, result) => {
-        console.log(`\n🔧 Executing step: ${step.variable}`);
-        console.log(`   Plan: ${step.plan}`);
-        console.log(`   Tool: ${step.tool}[${step.args}]`);
-      },
-      onSolve: async (state) => {
-        console.log('\n✅ Solution found');
+  const rewoo = new ReWOO(ai_config, [
+    llm_tool,
+    search_tool,
+    memory_by_keyword_tool,
+    recent_memory_tool,
+  ]);
 
-        // Log session state as markdown
-        const log_dir = path.join(__dirname, 'logs');
-        const log_file = path.join(log_dir, `${rewoo.session_id}_log.md`);
-        const markdown = format_state_as_markdown(state);
-        await fs.promises.writeFile(log_file, markdown);
-        console.log(`📝 Session logged to: ${log_file}`);
-      },
-      onError: (error) => console.error('\n❌ Error:', error.message),
-    }
+  // Subscribe to events
+  subscriptions.add(
+    event_bus.events.subscribe(async (event) => {
+      switch (event.type) {
+        case 'plan_created':
+          console.log('\n🔍 Plan created:');
+          if (event.plan.steps) {
+            event.plan.steps.forEach((step, index) => {
+              console.log(`  ${index + 1}. ${step.plan}`);
+              console.log(`     Tool: ${step.tool}[${step.args}]`);
+            });
+          }
+          break;
+
+        case 'tool_start':
+          console.log(`\n🔧 Starting tool: ${event.step.tool}`);
+          console.log(`   Args: ${event.args}`);
+          break;
+
+        case 'tool_complete':
+          console.log(`\n✅ Tool complete: ${event.step.tool}`);
+          console.log(`   Result: ${event.result}`);
+          break;
+
+        case 'solution_found':
+          console.log('\n✅ Solution found');
+          // Log session state as markdown
+          const log_dir = path.join(__dirname, 'logs');
+          const log_file = path.join(log_dir, `${rewoo.session_id}_log.md`);
+          const markdown = format_state_as_markdown(event.state);
+          await fs.promises.writeFile(log_file, markdown);
+          console.log(`📝 Session logged to: ${log_file}`);
+          break;
+
+        case 'completion':
+          console.log(`\n🤖 ${event.source} completion received`);
+          if (event.source) {
+            console.log(`   Source: ${event.source}`);
+          }
+          if (event.completion.usage) {
+            console.log('   Token Usage:');
+            console.log(`     Prompt: ${event.completion.usage.prompt_tokens}`);
+            console.log(
+              `     Completion: ${event.completion.usage.completion_tokens}`
+            );
+            console.log(`     Total: ${event.completion.usage.total_tokens}`);
+          }
+          break;
+
+        case 'error':
+          console.error('\n❌ Error:', event.error.message);
+          if (event.context) {
+            console.error('   Context:', event.context);
+          }
+          if (event.step) {
+            console.error('   Step:', event.step.tool);
+          }
+          break;
+
+        case 'retry':
+          console.log(
+            `\n🔄 Retry attempt ${event.attempt} (backoff: ${event.backoff_ms}ms)`
+          );
+          console.error('   Error:', event.error.message);
+          break;
+
+        case 'info':
+          console.log('\nℹ️ ', event.message);
+          break;
+      }
+    })
   );
 
   console.log('🚀 ReWOO CLI Started - Enter a task or type "q" to quit');
@@ -83,6 +134,7 @@ function create_cli() {
     rl.question('\n📝 Enter your task: ', async (task) => {
       if (task.toLowerCase() === 'q') {
         await memory_service.cleanup();
+        subscriptions.unsubscribe();
         rl.close();
         return;
       }
@@ -128,6 +180,7 @@ function create_cli() {
   process.on('SIGINT', async () => {
     console.log('\nExiting...');
     await memory_service.cleanup();
+    subscriptions.unsubscribe();
     process.exit(0);
   });
 }
