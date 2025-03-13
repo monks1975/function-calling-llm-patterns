@@ -25,7 +25,7 @@ export function format_state_as_markdown(state: State): string {
 
   // Plan section
   if (state.plan_string) {
-    md.push(`\n## Plan\n\n${escape_markdown(state.plan_string)}\n`);
+    md.push(`\n## Plan\n\n${escape_code_block(state.plan_string)}\n`);
   }
 
   // Steps section
