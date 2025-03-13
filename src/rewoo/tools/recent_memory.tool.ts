@@ -1,6 +1,6 @@
 // ~/src/ReWOO/tools/recent_memory.tool.ts
 
-import { PostgresDatabase } from '../db/postgres_database';
+import { PostgresDatabase } from '../db/postgres';
 
 import type { Tool } from '../types';
 

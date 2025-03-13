@@ -1,7 +1,7 @@
 // ~/src/ReWOO/tools/memory_by_keyword.tool.ts
 
 import { AiGenerate, type AiConfig } from '../ai';
-import { PostgresDatabase } from '../db/postgres_database';
+import { PostgresDatabase } from '../db/postgres';
 
 import type { Tool } from '../types';
 

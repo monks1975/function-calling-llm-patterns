@@ -1,11 +1,24 @@
 // ~/src/ReWOO/rewoo.ts
 //
-// Event System Architecture:
-// - Built on Node's EventEmitter for pub/sub event handling
+// ReWOO (Reasoning WithOut Observation) - A reactive AI workflow engine
+//
+// Core Components:
+// - PlannerAgent: Breaks down tasks into executable steps
+// - Worker: Executes individual steps using provided tools
+// - SolverAgent: Synthesizes results into final solutions
+// - EventBus: Manages reactive event flow between components
+//
+// Main Dependencies:
+// - RxJS: For reactive event handling and state management
+// - OpenAI: For AI-powered planning and execution
+//
+// Architecture:
+// - Built on RxJS Observables for reactive event handling
 // - Two-layer event system:
 //   1. Low-level tool events (tool_start, tool_complete, error)
 //   2. High-level process events (plan, solve)
-// - Callbacks can be registered for granular control
+// - Event filtering and subscription via RxJS operators
+// - Shared event stream for multiple subscribers
 
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
@@ -19,6 +32,21 @@ import type { AiConfig } from './ai';
 import type { EvidenceRecord, State } from './types';
 import type { Tool } from './types';
 
+/**
+ * ReWOO
+ *
+ * Manages the execution of AI-powered workflows through a three-stage process:
+ * 1. Planning: Breaks down tasks into executable steps
+ * 2. Execution: Runs each step using provided tools
+ * 3. Solving: Synthesizes results into final solutions
+ *
+ * Features:
+ * - Reactive event handling via RxJS
+ * - Token usage tracking
+ * - Error handling and recovery
+ * - Session-based state management
+ * - Evidence record generation
+ */
 export class ReWOO {
   private planner: PlannerAgent;
   private worker: Worker;
@@ -27,6 +55,11 @@ export class ReWOO {
   private state: State = { session_id: uuid(), task: '' };
   private tools: Tool[] = [];
 
+  /**
+   * Creates a new ReWOO instance
+   * @param ai_config - Configuration for AI models and parameters
+   * @param tools - Array of tools available for task execution
+   */
   constructor(ai_config: AiConfig, tools: Tool[]) {
     this.planner = new PlannerAgent(ai_config, tools, event_bus);
     this.worker = new Worker(ai_config, tools, event_bus);
@@ -50,17 +83,24 @@ export class ReWOO {
     );
   }
 
-  // Add getters
+  /**
+   * Gets the current session ID
+   */
   get session_id(): string {
     return this.state.session_id;
   }
 
+  /**
+   * Gets a copy of the current state
+   */
   get current_state(): State {
     return { ...this.state };
   }
 
-  // Getter for evidence records in a session; row-based
-  // Maps to evidence table schema
+  /**
+   * Gets evidence records for the current session
+   * Maps internal state to evidence table schema
+   */
   get evidence_records(): EvidenceRecord[] {
     return Object.entries(this.state.results || {}).map(
       ([variable, content], idx) => ({
@@ -73,6 +113,17 @@ export class ReWOO {
     );
   }
 
+  /**
+   * Processes a task through the ReWOO workflow
+   *
+   * Flow:
+   * 1. Creates execution plan
+   * 2. Executes each step
+   * 3. Synthesizes final solution
+   *
+   * @param task - The task to process
+   * @returns Promise<State> - Final state with results
+   */
   async process(task: string): Promise<State> {
     this.state = {
       session_id: this.state.session_id,
@@ -123,6 +174,9 @@ export class ReWOO {
     }
   }
 
+  /**
+   * Cleans up resources and subscriptions
+   */
   async cleanup(): Promise<void> {
     // Unsubscribe from all events
     this.subscriptions.unsubscribe();

@@ -2,7 +2,7 @@
 
 import { v4 as uuid } from 'uuid';
 
-import { PostgresDatabase } from '../db/postgres_database';
+import { PostgresDatabase } from '../db/postgres';
 
 import { AiGenerate, type AiConfig } from '../ai';
 
