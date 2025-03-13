@@ -81,13 +81,15 @@ export function format_state_as_markdown(state: State): string {
       (acc, curr) => ({
         prompt_tokens: acc.prompt_tokens + curr.prompt_tokens,
         completion_tokens: acc.completion_tokens + curr.completion_tokens,
-        total_tokens: acc.total_tokens + curr.total_tokens,
+        total_tokens: acc.prompt_tokens + acc.completion_tokens,
       }),
       { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
     );
 
     md.push(
-      `| **Total** | - | **${totals.prompt_tokens}** | **${totals.completion_tokens}** | **${totals.total_tokens}** |`
+      `| **Total** | ${totals.prompt_tokens} | ${totals.completion_tokens} | ${
+        totals.prompt_tokens + totals.completion_tokens
+      } |`
     );
   }
 
