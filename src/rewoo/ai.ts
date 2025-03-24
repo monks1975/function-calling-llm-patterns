@@ -276,7 +276,7 @@ export class AiGenerate {
     if (error instanceof AiError) {
       notification.status = error.status;
       notification.headers = error.headers;
-      notification.errorDetails = error.errorDetails;
+      notification.error_details = error.errorDetails;
     }
 
     // Support both event bus and callbacks
