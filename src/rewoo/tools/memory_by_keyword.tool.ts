@@ -8,7 +8,7 @@ import type { Tool } from '../types';
 export class MemoryByKeywordTool implements Tool {
   name = 'MemoryByKeyword';
   description =
-    'Retrieves memories related to the given query using semantic search.';
+    'Retrieves memories related to the given query using semantic or keyword search.';
   private ai: AiGenerate;
   private db: PostgresDatabase;
 
@@ -16,10 +16,6 @@ export class MemoryByKeywordTool implements Tool {
     this.ai = new AiGenerate(ai_config);
     this.db = new PostgresDatabase();
     this.db.init().catch(console.error);
-  }
-
-  private clean_solution_text(text: string): string {
-    return text.replace(/#E\d+|#[A-Za-z0-9_]+|\(#[A-Za-z0-9_]+\)/g, '');
   }
 
   async execute(args: string): Promise<string> {
@@ -64,11 +60,12 @@ export class MemoryByKeywordTool implements Tool {
         .slice(0, 5)
         .map(
           (r) =>
-            `[Similarity: ${(1 - r.similarity).toFixed(2)}] Task: ${
-              r.task
-            }\nSolution: ${r.solution}\nSession: ${r.session_id}`
+            `### Memory (Similarity: ${(1 - r.similarity).toFixed(2)})\n\n` +
+            `**Task:** ${r.task}\n\n` +
+            `**Solution:**\n${r.solution}\n\n` +
+            `**Session:** ${r.session_id}`
         )
-        .join('\n\n');
+        .join('\n\n---\n\n');
     } catch (error) {
       console.error('Error searching memories:', error);
       return `Error searching memories: ${
