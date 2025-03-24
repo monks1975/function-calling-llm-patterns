@@ -3,90 +3,109 @@
 import Handlebars from 'handlebars';
 
 import { AiGenerate, type AiConfig } from './ai';
+import { examples } from './planner.examples';
 
 import type { EventBus } from './events';
-import type { State, Tool } from './types';
+import type { PlanExample, State, Tool } from './types';
 
-// Handlebars template for the planner prompt
+const planner_system_prompt = `You are an expert planner that breaks tasks into sequential steps.`;
+
 // prettier-ignore
-const planner_template = Handlebars.compile(
-`You are an expert planner that breaks tasks into sequential steps.
+const planner_user_template = Handlebars.compile(
+`Today's date: {{today}}
 
-Today's date: {{today}}
-
-Available tools:
-{{#each tools}}
-({{name}})[input]: {{description}}
-{{/each}}
-
-Create ONE sequential plan to solve the given task. Each step must follow this format exactly:
+Create a sequential plan of 1-5 steps to solve the given task. Each step must follow this format exactly:
 Plan: <description> #E<number> = <tool>[<args>]
 
 Rules:
+
 1. Create exactly ONE plan - do not revise or provide alternatives
 2. Each step must have exactly one #E variable
 3. Number steps sequentially starting at #E1
 4. Each step must use an available tool
 5. Later steps can reference earlier #E variables in their args
+6. Plans should be a maximum of 5 steps
 
-Examples:
+{{{tools}}}
 
-Task: What are the latest developments in quantum computing?
-Plan: Search for current quantum computing news. #E1 = Search[latest quantum computing breakthroughs 2024]
-Plan: Analyze and summarize findings. #E2 = LLM[Summarize key developments from (#E1)]
-
-Task: Explain how blockchain works
-Plan: Search for technical details. #E1 = Search[blockchain technology explanation]
-Plan: Create clear explanation. #E2 = LLM[Create beginner-friendly explanation from (#E1)]
-
-Task: What is the capital of France?
-Plan: Search for basic facts. #E1 = Search[capital of France facts]
-Plan: Format response clearly. #E2 = LLM[Create concise response about Paris from (#E1)]
-
-Task: What happened in the latest SpaceX launch?
-Plan: Search recent news. #E1 = Search[latest SpaceX launch news]
-Plan: Summarize key points. #E2 = LLM[Create summary of launch from (#E1)]
-
-Task: Define the word "serendipity"
-Plan: Search for definition. #E1 = Search[serendipity definition and examples]
-Plan: Create clear explanation. #E2 = LLM[Format definition and examples from (#E1)]
-
-Task: What did we discuss about climate change last week?
-Plan: Search recent memory for climate discussions. #E1 = RecentMemory[climate change]
-Plan: Analyze and summarize the conversation. #E2 = LLM[Create summary from (#E1)]
-
-Task: What have I asked about artificial intelligence?
-Plan: Search memory for AI-related queries. #E1 = MemoryByKeyword[artificial intelligence, AI, machine learning]
-Plan: Create comprehensive overview. #E2 = LLM[Synthesize AI discussions from (#E1)]
-
-Task: Find our previous discussions about renewable energy
-Plan: Search memory for energy topics. #E1 = MemoryByKeyword[renewable energy, solar, wind power]
-Plan: Organize key points. #E2 = LLM[Create structured summary from (#E1)]
-
-Task: What background do we have on space exploration?
-Plan: Retrieve space-related memories. #E1 = MemoryByKeyword[space exploration, NASA, astronomy]
-Plan: Create contextual summary. #E2 = LLM[Build comprehensive context from (#E1)]
-
-Task: What have we covered about quantum physics?
-Plan: Get quantum physics discussions. #E1 = MemoryByKeyword[quantum physics, quantum mechanics]
-Plan: Synthesize learning progress. #E2 = LLM[Create learning timeline from (#E1)]
+Describe your plans with rich details. Each Plan must be followed by only one #E.
 
 Begin!
-Describe your plans with rich details. Each Plan should be followed by only one #E.
-Task: {{task}}`
+
+Task: {{{task}}}`
+);
+
+// prettier-ignore
+const tools_template = Handlebars.compile(
+`Available tools:
+
+{{#each tools}}
+{{name}}: {{description}}
+{{/each}}
+
+{{#if examples.length}}
+Examples:
+
+{{#each examples}}
+Task: {{this.task}}
+{{#each this.plan_steps}}
+Plan: {{{this}}}
+{{/each}}
+
+{{/each}}
+{{/if}}`
 );
 
 export class PlannerAgent {
   private ai: AiGenerate;
   private tools: Tool[];
   private event_bus: EventBus;
+
   private readonly regex_pattern =
     /Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]/g;
 
   constructor(ai_config: AiConfig, tools: Tool[], event_bus: EventBus) {
     this.ai = new AiGenerate(ai_config, event_bus, 'planner');
-    this.tools = tools;
     this.event_bus = event_bus;
+    this.tools = tools;
+  }
+
+  // Function to filter planner examples based on available tools
+  private get_compatible_examples(
+    tool_names: string[],
+    examples: PlanExample[]
+  ): PlanExample[] {
+    return examples.filter((example) =>
+      example.required_tools.every((tool) => tool_names.includes(tool))
+    );
+  }
+
+  // Function to build planner examples prompt with filtered examples
+  private build_planner_examples(
+    available_tools: Tool[],
+    examples: PlanExample[]
+  ): string {
+    const compatible_examples = this.get_compatible_examples(
+      available_tools.map((tool) => tool.name),
+      examples
+    );
+
+    return tools_template({
+      tools: available_tools,
+      examples: compatible_examples,
+    });
+  }
+
+  private create_system_prompt(): string {
+    return planner_system_prompt;
+  }
+
+  private create_user_prompt(task: string): string {
+    return planner_user_template({
+      tools: this.build_planner_examples(this.tools, examples),
+      today: new Date().toLocaleDateString('en-GB'),
+      task,
+    });
   }
 
   async create_plan(task: string): Promise<Partial<State>> {
@@ -205,17 +224,5 @@ export class PlannerAgent {
 
       return fallback_plan;
     }
-  }
-
-  private create_system_prompt(): string {
-    return `You are an expert planner that breaks tasks into sequential steps.`;
-  }
-
-  private create_user_prompt(task: string): string {
-    return planner_template({
-      tools: this.tools,
-      today: new Date().toLocaleDateString('en-GB'),
-      task,
-    });
   }
 }
