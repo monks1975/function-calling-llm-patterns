@@ -1,19 +1,26 @@
 // ~/src/ReWOO/tools/recent_memory.tool.ts
 
+import { z } from 'zod';
 import { PostgresDatabase } from '../db/postgres';
 
 import type { Tool } from '../types';
 
+const memory_params_schema = z
+  .object({
+    from_date: z.string().datetime().optional(),
+    to_date: z.string().datetime().optional(),
+  })
+  .strict();
+
+type MemoryParams = z.infer<typeof memory_params_schema>;
+
 export class RecentMemoryTool implements Tool {
-  private static readonly DEFAULT_LIMIT = 10;
-  private static readonly MAX_LIMIT = 20;
+  private static readonly MAX_LIMIT = 5;
 
   name = 'RecentMemory';
   description =
-    'Retrieves recent memories, optionally filtered by date range. Parameters:\n' +
-    '- from_date: ISO format date to filter from\n' +
-    '- to_date: ISO format date to filter to\n' +
-    '- limit: Maximum number of records to return (default: 10, max: 20)';
+    'Retrieves recent memories, optionally filtered by a date range.';
+
   private db: PostgresDatabase;
 
   constructor() {
@@ -23,22 +30,10 @@ export class RecentMemoryTool implements Tool {
 
   async execute(args: string): Promise<string> {
     try {
-      // Parse args as JSON to get optional parameters
-      const params = args ? JSON.parse(args) : {};
-      const {
-        from_date,
-        to_date,
-        limit = RecentMemoryTool.DEFAULT_LIMIT,
-      } = params;
-
-      // Validate limit is a positive number
-      const validated_limit = Math.max(
-        1,
-        Math.min(
-          RecentMemoryTool.MAX_LIMIT,
-          Number(limit) || RecentMemoryTool.DEFAULT_LIMIT
-        )
-      );
+      // Parse and validate args
+      const params: MemoryParams = args
+        ? memory_params_schema.parse(JSON.parse(args))
+        : memory_params_schema.parse({});
 
       let query = `
         SELECT id, session_id, task, solution, metadata, created_at
@@ -46,24 +41,24 @@ export class RecentMemoryTool implements Tool {
       `;
       const query_params: any[] = [];
 
-      if (from_date || to_date) {
+      if (params.from_date || params.to_date) {
         const conditions: string[] = [];
 
-        if (from_date) {
+        if (params.from_date) {
           conditions.push('created_at >= $' + (query_params.length + 1));
-          query_params.push(from_date);
+          query_params.push(params.from_date);
         }
 
-        if (to_date) {
+        if (params.to_date) {
           conditions.push('created_at <= $' + (query_params.length + 1));
-          query_params.push(to_date);
+          query_params.push(params.to_date);
         }
 
         query += ' WHERE ' + conditions.join(' AND ');
       }
 
       query += ' ORDER BY created_at DESC LIMIT $' + (query_params.length + 1);
-      query_params.push(validated_limit);
+      query_params.push(RecentMemoryTool.MAX_LIMIT);
 
       const { rows } = await this.db.pool.query(query, query_params);
 
@@ -74,16 +69,24 @@ export class RecentMemoryTool implements Tool {
       return rows
         .map(
           (r) =>
-            `[${new Date(r.created_at).toISOString()}] Task: ${
-              r.task
-            }\nSolution: ${r.solution}`
+            `### Memory from ${new Date(r.created_at).toISOString()}\n\n` +
+            `**Task:** ${r.task}\n\n` +
+            `**Solution:**\n${r.solution}`
         )
-        .join('\n\n');
+        .join('\n\n---\n\n');
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return `Error: Validation error: ${error.errors
+          .map((e) => e.message)
+          .join(', ')}`;
+      }
+
+      if (error instanceof SyntaxError) {
+        return 'Error: Invalid JSON format in arguments';
+      }
+
       console.error('Error fetching memories:', error);
-      return `Error fetching memories: ${
-        error instanceof Error ? error.message : String(error)
-      }`;
+      return `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 
