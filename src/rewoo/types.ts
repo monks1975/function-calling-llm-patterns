@@ -42,7 +42,6 @@ export interface Tool {
   name: string;
   description: string;
   execute(args: string): Promise<string>;
-  cleanup?(): Promise<void>;
 }
 
 export interface AiRetryNotification {
@@ -52,7 +51,7 @@ export interface AiRetryNotification {
   error: string;
   status?: number;
   headers?: Record<string, string>;
-  errorDetails?: Record<string, any>;
+  error_details?: Record<string, any>;
 }
 
 // Base completion type used throughout the application
@@ -73,4 +72,10 @@ export interface EvidenceRecord {
   content: string;
   created_at: number;
   step_variable: string;
+}
+
+export interface PlanExample {
+  task: string;
+  required_tools: string[];
+  plan_steps: string[];
 }
