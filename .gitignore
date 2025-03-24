@@ -17,3 +17,4 @@ npm-debug.log*
 
 # Mac specific
 .DS_Store
+repomix-output.xml
