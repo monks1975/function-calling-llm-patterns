@@ -11,10 +11,12 @@ import { format_state_as_markdown } from './helpers';
 import { MemoryService } from './services/memory_service';
 import { ReWOO } from './rewoo';
 
+import { CalculatorTool } from './tools/calculator.tool';
+import { LibraryTool } from './tools/library.tool';
 import { LlmTool } from './tools/llm.tool';
 import { MemoryByKeywordTool } from './tools/memory_by_keyword.tool';
 import { RecentMemoryTool } from './tools/recent_memory.tool';
-import { SearchTool } from './tools/search.tool';
+import { TavilyTool } from './tools/tavily.tool';
 
 dotenv.config();
 
@@ -39,19 +41,26 @@ function create_cli() {
 
   // Initialize tools
   const llm_tool = new LlmTool(ai_config, event_bus);
-  const search_tool = new SearchTool(process.env.TAVILY_API_KEY || '');
+  const tavily_tool = new TavilyTool(process.env.TAVILY_API_KEY || '');
   const memory_by_keyword_tool = new MemoryByKeywordTool(ai_embedding_config);
   const recent_memory_tool = new RecentMemoryTool();
+  const calculator_tool = new CalculatorTool();
+
+  const library_tool = new LibraryTool(
+    'This library contains documents about Apple and Steve Jobs. You should use this tool to search for information when asked about Apple and Steve Jobs.',
+    'be3fe717-64f1-4014-8b03-01c534aefd30'
+  );
 
   const memory_service = new MemoryService(ai_embedding_config);
   const subscriptions = new Subscription();
 
   // Create ReWOO instance
   const rewoo = new ReWOO(ai_config, [
+    calculator_tool,
     llm_tool,
-    search_tool,
     memory_by_keyword_tool,
     recent_memory_tool,
+    tavily_tool,
   ]);
 
   // Subscribe to events
