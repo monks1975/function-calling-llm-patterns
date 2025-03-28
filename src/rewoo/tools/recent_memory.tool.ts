@@ -1,9 +1,9 @@
 // ~/src/ReWOO/tools/recent_memory.tool.ts
 
 import { z } from 'zod';
-import { PostgresDatabase } from '../db/postgres';
+import { PostgresDatabase } from '../../core/db/postgres';
 
-import type { Tool } from '../types';
+import type { ReWooTool } from '../types';
 
 const memory_params_schema = z
   .object({
@@ -14,7 +14,7 @@ const memory_params_schema = z
 
 type MemoryParams = z.infer<typeof memory_params_schema>;
 
-export class RecentMemoryTool implements Tool {
+export class RecentMemoryTool implements ReWooTool {
   private static readonly MAX_LIMIT = 5;
 
   name = 'RecentMemory';

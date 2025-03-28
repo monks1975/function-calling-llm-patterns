@@ -3,7 +3,6 @@
 # is used to help the agent understand the task and the expected output.
 
 examples:
-  # Example 1
   - - role: user
       content: 'Calculate how many apples each person gets if we have 125 apples to distribute among 5 people.'
     - role: assistant
@@ -12,7 +11,6 @@ examples:
         action: 'calculator'
         input: '{"expression": "125 / 5"}'
 
-  # Example 2
   - - role: user
       content: '[Tool Observation] 80'
     - role: assistant
@@ -21,79 +19,6 @@ examples:
         action: 'calculator'
         input: '{"expression": "80 * (1 + 0.10)"}'
 
-  # Example 3
-  - - role: user
-      content: 'If I have $1500 and want to save 15% of it for emergencies, how much should I save?'
-    - role: assistant
-      content:
-        thought: 'I need to calculate 15% of $1500 to determine the savings amount.'
-        action: 'calculator'
-        input: '{"expression": "1500 * 0.15"}'
-
-  # Example 4
-  - - role: user
-      content: '[Tool Observation] The room is 15.5 feet long and 12.3 feet wide.'
-    - role: assistant
-      content:
-        thought: 'I need to calculate the area of the room by multiplying length by width.'
-        action: 'calculator'
-        input: '{"expression": "15.5 * 12.3"}'
-
-  # Example 5
-  - - role: user
-      content: 'What is 25% of 420?'
-    - role: assistant
-      content:
-        thought: 'I need to calculate 25% (0.25) of 420.'
-        action: 'calculator'
-        input: '{"expression": "420 * 0.25"}'
-
-  # Example 6
-  - - role: user
-      content: '[Tool Observation] The recipe calls for 2.5 cups of flour, and I want to make 3 batches.'
-    - role: assistant
-      content:
-        thought: 'I need to multiply the required flour by the number of batches.'
-        action: 'calculator'
-        input: '{"expression": "2.5 * 3"}'
-
-  # Example 7
-  - - role: user
-      content: '[Tool Observation] The expression is (45 + 32) * 2 - 15'
-    - role: assistant
-      content:
-        thought: 'I need to evaluate this mathematical expression.'
-        action: 'calculator'
-        input: '{"expression": "(45 + 32) * 2 - 15"}'
-
-  # Example 8
-  - - role: user
-      content: 'If a car travels 65 miles per hour for 3.5 hours, how far does it go?'
-    - role: assistant
-      content:
-        thought: 'I need to multiply the speed by the time to get the distance.'
-        action: 'calculator'
-        input: '{"expression": "65 * 3.5"}'
-
-  # Example 9
-  - - role: user
-      content: '[Tool Observation] The circle has a radius of 5.2 meters.'
-    - role: assistant
-      content:
-        thought: 'I need to calculate the area of the circle using π r².'
-        action: 'calculator'
-        input: '{"expression": "3.14159 * 5.2 * 5.2"}'
-
-  # Example 10
-  - - role: user
-      content: 'What is the average of these numbers: 78, 92, 86, 95, 88?'
-    - role: assistant
-      content:
-        thought: 'I need to sum all numbers and divide by the count to find the average.'
-        action: 'calculator'
-        input: '{"expression": "(78 + 92 + 86 + 95 + 88) / 5"}'
-
-  # Example 11
   - - role: user
       content: 'I need to calculate the total cost of materials. The wood costs $245, paint costs $89, and I need 3 sets of these.'
     - role: assistant
@@ -102,7 +27,6 @@ examples:
         action: 'calculator'
         input: '{"expression": "245 + 89"}'
 
-  # Example 12
   - - role: user
       content: '[Tool Observation] 334'
     - role: assistant
@@ -111,27 +35,9 @@ examples:
         action: 'calculator'
         input: '{"expression": "334 * 3"}'
 
-  # Example 13
   - - role: user
       content: '[Tool Observation] 212'
     - role: assistant
       content:
         thought: 'I have converted the temperature.'
         final_answer: 'Water boils at 212 degrees Fahrenheit at standard atmospheric pressure.'
-
-  # Example 14
-  - - role: user
-      content: "What's the area of a circle with radius 5?"
-    - role: assistant
-      content:
-        thought: 'I need to use the formula πr² where r=5.'
-        action: 'calculator'
-        input: '{"expression": "pi * 5^2"}'
-
-  # Example 15
-  - - role: user
-      content: '[Tool Observation] 78.53981633974483'
-    - role: assistant
-      content:
-        thought: 'I have calculated the area and should round for clarity.'
-        final_answer: 'The area of a circle with radius 5 is approximately 78.54 square units.'

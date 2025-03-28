@@ -2,10 +2,10 @@
 
 import Handlebars from 'handlebars';
 
-import { AiGenerate, type AiConfig } from '../ai';
+import { AiGenerate, type AiConfig } from '../../core';
 
 import type { EventBus } from '../events';
-import type { Tool } from '../types';
+import type { ReWooTool } from '../types';
 
 // prettier-ignore
 const llm_system_prompt = Handlebars.compile(
@@ -21,7 +21,7 @@ const llm_system_prompt = Handlebars.compile(
   `
 );
 
-export class LlmTool implements Tool {
+export class LlmTool implements ReWooTool {
   name = 'LLM';
   description =
     'A pretrained LLM like yourself. Useful for general knowledge and reasoning.';

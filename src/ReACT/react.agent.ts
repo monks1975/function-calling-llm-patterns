@@ -1,14 +1,14 @@
 // ~/src/ReACT/react.agent.ts
 // ReAct agent implementation
 
+import { v4 as uuid } from 'uuid';
 import { z } from 'zod';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 
-import { AiGenerate, type AiCallbacks } from './ai';
+import { AiError, AiGenerate } from '../core/ai';
 
 import {
-  content_violation_template,
   react_instruction_template,
   max_iterations_template,
 } from './react.instructions';
@@ -22,72 +22,40 @@ import {
   init_tools_from_config,
 } from './tools/setup';
 
-import type { AiConfig } from './ai';
+import type { AiConfig } from '../core/types';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import type { ModerationResult } from './moderation';
-import type { ToolDefinition, ToolsConfig } from './tools/setup';
+import type { ToolsConfig } from './tools/setup';
 import type { ToolResponse } from './tools/helpers';
-import { AiError } from './ai';
 
-type ReActResponse = z.infer<typeof react_response_schema>;
-
-export interface ReActCallbacks extends AiCallbacks {
-  onChunk?: (chunk: string) => void;
-  onToolObservation?: (observation: {
-    data: string;
-    is_error: boolean;
-  }) => void;
-  onFinalAnswer?: (answer: string) => void;
-  onIteration?: (count: number) => void;
-  onError?: (error: Error) => void;
-  onContentModeration?: (moderation_data: {
-    original_message: string;
-    moderation_result: ModerationResult;
-    violated_categories: string[];
-  }) => void;
-}
+import type {
+  ReActResponse,
+  ReActCallbacks,
+  ReActState,
+  ReActTokenUsage,
+} from './types';
 
 export class ReActAgent extends AiGenerate {
-  // Map of tool names to their implementations
-  private tools: Map<string, ToolDefinition>;
-
-  // Maps alternative tool names to their primary names
-  private tool_name_map: Map<string, string>;
-
-  // Maximum number of thought/action cycles
-  private max_iterations: number;
-
-  // Stores the original user question
-  private original_question: string | null;
-
-  // Stores previous actions and observations for planning
-  private previous_actions: Array<{
-    action: string;
-    input: any;
-    observation: string;
-  }>;
-
-  // Stores previous thoughts for planning
-  private previous_thoughts: string[];
-
-  // Flag to control when to use the planner
-  private use_planner_frequency: number;
+  private state: ReActState;
 
   constructor(
-    config: AiConfig,
+    ai_config: AiConfig,
     tools_config: ToolsConfig,
-    max_iterations: number = 12,
-    use_planner_frequency: number = 2
+    max_iterations: number = 12
   ) {
-    super(config);
+    super(ai_config);
 
-    this.tools = new Map();
-    this.tool_name_map = new Map();
-    this.max_iterations = max_iterations;
-    this.original_question = null;
-    this.previous_actions = [];
-    this.previous_thoughts = [];
-    this.use_planner_frequency = use_planner_frequency;
+    // Initialize state
+    this.state = {
+      session_id: uuid(),
+      task: '',
+      timestamp: Date.now(),
+      max_iterations,
+      tools: new Map(),
+      tool_name_map: new Map(),
+      original_question: null,
+      previous_actions: [],
+      previous_thoughts: [],
+    };
 
     // Load base few shot examples
     const base_few_shot = load_and_convert_yaml(
@@ -100,15 +68,15 @@ export class ReActAgent extends AiGenerate {
     // Store tools by their primary name and build alternative name mapping
     available_tools.forEach((tool) => {
       const primary_name = tool.name.toLowerCase();
-      this.tools.set(primary_name, tool);
+      this.state.tools.set(primary_name, tool);
 
       // Add mapping for the primary name itself
-      this.tool_name_map.set(primary_name, primary_name);
+      this.state.tool_name_map.set(primary_name, primary_name);
 
       // Add mappings for alternative names if they exist
       if (tool.alternative_names) {
         tool.alternative_names.forEach((alt_name) => {
-          this.tool_name_map.set(alt_name.toLowerCase(), primary_name);
+          this.state.tool_name_map.set(alt_name.toLowerCase(), primary_name);
         });
       }
     });
@@ -120,7 +88,7 @@ export class ReActAgent extends AiGenerate {
       base_few_shot: base_few_shot,
       tools: tools_description,
       tools_few_shot: tools_few_shot,
-      max_iterations: this.max_iterations,
+      max_iterations: this.state.max_iterations,
     });
 
     this.add_message({
@@ -129,26 +97,13 @@ export class ReActAgent extends AiGenerate {
     });
   }
 
-  // Collects previous thoughts and actions for the planner tool
-  private collect_history_for_planner(): {
-    previous_actions: Array<{
-      action: string;
-      input: any;
-      observation: string;
-    }>;
-    previous_thoughts: string[];
-  } {
-    return {
-      previous_actions: [...this.previous_actions],
-      previous_thoughts: [...this.previous_thoughts],
-    };
+  // Getters for state
+  get session_id(): string {
+    return this.state.session_id;
   }
 
-  // Determines if the planner should be used in the current iteration
-  private should_use_planner(iteration: number): boolean {
-    // Use planner on every nth iteration (based on use_planner_frequency)
-    // But not on the first iteration
-    return iteration > 1 && iteration % this.use_planner_frequency === 0;
+  get current_state(): ReActState {
+    return { ...this.state };
   }
 
   // Executes a tool with the given input and returns the result
@@ -159,11 +114,11 @@ export class ReActAgent extends AiGenerate {
     }
 
     const normalized_action = action.toLowerCase();
-    const primary_name = this.tool_name_map.get(normalized_action);
-    const tool = primary_name ? this.tools.get(primary_name) : null;
+    const primary_name = this.state.tool_name_map.get(normalized_action);
+    const tool = primary_name ? this.state.tools.get(primary_name) : null;
 
     if (!tool) {
-      const available_tools = Array.from(this.tools.values())
+      const available_tools = Array.from(this.state.tools.values())
         .map((t) => t.name)
         .join(', ');
 
@@ -194,11 +149,12 @@ export class ReActAgent extends AiGenerate {
       }
 
       // Return the result or a default message if no result
-      return (
-        response.result || 'Tool execution completed but returned no result'
-      );
+      const result =
+        response.result || 'Tool execution completed but returned no result';
+      return result;
     } catch (error) {
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      throw err;
     }
   }
 
@@ -210,61 +166,10 @@ export class ReActAgent extends AiGenerate {
     return [systemMessage, ...recentMessages];
   }
 
-  // Handles content moderation for the last user message
-  private async handle_moderation(
-    messages: ChatCompletionMessageParam[],
-    callbacks?: ReActCallbacks
-  ): Promise<ChatCompletionMessageParam[]> {
-    // If no moderator is configured or no messages, return original messages
-    if (!this.config.moderator || messages.length === 0) {
-      return messages;
-    }
-
-    const last_message = messages[messages.length - 1];
-
-    // Skip moderation for tool observations (identified by name field)
-    if (
-      last_message.role !== 'user' ||
-      typeof last_message.content !== 'string' ||
-      (last_message as any).name === 'tool_observation'
-    ) {
-      return messages;
-    }
-
-    const moderation_result = await this.config.moderator.moderate(
-      last_message.content
-    );
-
-    if (!moderation_result.flagged) {
-      return messages;
-    }
-
-    const violated_categories = Object.entries(moderation_result.categories)
-      .filter(([_, violated]) => violated)
-      .map(([category, _]) => category);
-
-    callbacks?.onContentModeration?.({
-      original_message: last_message.content,
-      moderation_result,
-      violated_categories,
-    });
-
-    // Create a tool observation message about the content warning
-    const content_violation = Handlebars.compile(content_violation_template)({
-      violated_categories: violated_categories.join(', '),
-      safeguarding_message: this.config.moderation_config?.safeguarding_message,
-    });
-
-    // Replace the user's message with the tool observation and mark it with the
-    // tool_observation prefix
-    return [
-      ...messages.slice(0, -1),
-      {
-        role: 'user',
-        name: 'tool_observation',
-        content: `[Tool Observation] ${content_violation}`,
-      } as ChatCompletionMessageParam,
-    ];
+  // Helper to track token usage
+  private track_token_usage(usage: ReActTokenUsage): void {
+    if (!this.state.token_usage) this.state.token_usage = [];
+    this.state.token_usage.push(usage);
   }
 
   // Handles the case when the agent reaches maximum iterations without finding
@@ -284,8 +189,8 @@ export class ReActAgent extends AiGenerate {
       .join('\n');
 
     const max_iterations_reached = Handlebars.compile(max_iterations_template)({
-      max_iterations: this.max_iterations,
-      original_question: this.original_question,
+      max_iterations: this.state.max_iterations,
+      original_question: this.state.original_question,
       recent_thoughts: recent_thoughts,
     });
 
@@ -309,14 +214,10 @@ export class ReActAgent extends AiGenerate {
     try {
       // Get context messages and apply moderation if needed
       const context_messages = this.get_context_messages();
-      const moderated_messages = await this.handle_moderation(
-        context_messages,
-        callbacks
-      );
 
       // Call the parent class's get_completion method with the possibly moderated messages
       const response = await super.get_completion(
-        moderated_messages,
+        context_messages,
         { type: 'json_object' },
         {
           onRetry: callbacks?.onRetry,
@@ -426,52 +327,25 @@ export class ReActAgent extends AiGenerate {
     }
 
     try {
-      this.original_question = question;
-      this.add_message({ role: 'user', content: question });
+      // Initialize state for new question
+      this.state = {
+        ...this.state,
+        task: question,
+        original_question: question,
+        timestamp: Date.now(),
+        previous_actions: [],
+        previous_thoughts: [],
+      };
 
-      // Reset history for new question
-      this.previous_actions = [];
-      this.previous_thoughts = [];
+      this.add_message({ role: 'user', content: question });
 
       let iterations = 0;
 
-      while (iterations < this.max_iterations) {
+      while (iterations < this.state.max_iterations) {
         iterations++;
-
         callbacks?.onIteration?.(iterations);
 
-        // Check if we should use the planner tool
-        if (this.should_use_planner(iterations)) {
-          try {
-            const history = this.collect_history_for_planner();
-
-            // Execute the planner tool
-            const planning_result = await this.execute_action('planner', {
-              question: this.original_question,
-              current_iteration: iterations,
-              max_iterations: this.max_iterations,
-              previous_actions: history.previous_actions,
-              previous_thoughts: history.previous_thoughts,
-            });
-
-            callbacks?.onToolObservation?.({
-              data: planning_result,
-              is_error: false,
-            });
-
-            // Add the planning result as a tool observation
-            this.add_message({
-              role: 'user',
-              name: 'tool_observation',
-              content: `[Tool Observation] ${planning_result}`,
-            } as ChatCompletionMessageParam);
-          } catch (error) {
-            // If planner fails, log the error but continue with the agent's normal flow
-            console.error('Planner tool error:', error);
-          }
-        }
-
-        if (iterations === this.max_iterations) {
+        if (iterations === this.state.max_iterations) {
           await this.handle_max_iterations_reached(callbacks);
         }
 
@@ -479,9 +353,8 @@ export class ReActAgent extends AiGenerate {
           const response_text = await this.get_model_response(callbacks);
           const parsed_response = this.parse_react_response(response_text);
 
-          // Store the thought for future planning
           if (parsed_response.thought) {
-            this.previous_thoughts.push(parsed_response.thought);
+            this.state.previous_thoughts.push(parsed_response.thought);
           }
 
           this.add_message({
@@ -490,11 +363,10 @@ export class ReActAgent extends AiGenerate {
           });
 
           if (
-            iterations === this.max_iterations &&
+            iterations === this.state.max_iterations &&
             !parsed_response.final_answer
           ) {
             const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
-
             callbacks?.onFinalAnswer?.(forced_answer);
             return forced_answer;
           }
@@ -505,25 +377,10 @@ export class ReActAgent extends AiGenerate {
           }
 
           if (parsed_response.action && parsed_response.input !== undefined) {
-            // Skip recording internal planner actions in the history
-            const is_internal_planner =
-              parsed_response.action.toLowerCase() === 'planner' ||
-              parsed_response.action.toLowerCase() === 'plan' ||
-              parsed_response.action.toLowerCase() === 'planning';
-
             const observation = await this.execute_action(
               parsed_response.action,
               parsed_response.input
             );
-
-            // Store the action and observation for future planning
-            if (!is_internal_planner) {
-              this.previous_actions.push({
-                action: parsed_response.action,
-                input: parsed_response.input,
-                observation: observation,
-              });
-            }
 
             callbacks?.onToolObservation?.({
               data: observation,
@@ -556,7 +413,9 @@ export class ReActAgent extends AiGenerate {
 
       return 'Error: Maximum iterations reached unexpectedly';
     } catch (error) {
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.state.errors = [...(this.state.errors || []), err];
+      throw err;
     }
   }
 
@@ -565,12 +424,12 @@ export class ReActAgent extends AiGenerate {
     this.abort();
 
     // Clear tool references to help garbage collection
-    this.tools.clear();
-    this.tool_name_map.clear();
+    this.state.tools.clear();
+    this.state.tool_name_map.clear();
 
     // Clear history arrays
-    this.previous_actions = [];
-    this.previous_thoughts = [];
+    this.state.previous_actions = [];
+    this.state.previous_thoughts = [];
 
     // Call parent class cleanup
     super.cleanup();

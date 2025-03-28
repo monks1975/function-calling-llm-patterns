@@ -1,15 +1,16 @@
 // ~/src/ReWOO/worker.ts
 
-import { AiGenerate, type AiConfig } from './ai';
+import { AiGenerate, type AiConfig } from '../core';
+
 import type { EventBus } from './events';
-import type { Step, Tool } from './types';
+import type { ReWooStep, ReWooTool } from './types';
 
 export class Worker {
-  private tools: Map<string, Tool>;
+  private tools: Map<string, ReWooTool>;
   private fallback_ai: AiGenerate;
   private event_bus: EventBus;
 
-  constructor(ai_config: AiConfig, tools: Tool[], event_bus: EventBus) {
+  constructor(ai_config: AiConfig, tools: ReWooTool[], event_bus: EventBus) {
     this.fallback_ai = new AiGenerate(ai_config, event_bus);
     this.event_bus = event_bus;
 
@@ -30,7 +31,7 @@ export class Worker {
   }
 
   async execute_step(
-    step: Step,
+    step: ReWooStep,
     results: Record<string, string> = {}
   ): Promise<string> {
     // Process variable substitutions in the args

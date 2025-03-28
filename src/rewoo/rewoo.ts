@@ -29,8 +29,8 @@ import { SolverAgent } from './solver';
 import { Worker } from './worker';
 
 import type { AiConfig } from './ai';
-import type { EvidenceRecord, State } from './types';
-import type { Tool } from './types';
+import type { ReWooEvidenceRecord, ReWooState } from './types';
+import type { ReWooTool } from './types';
 
 /**
  * ReWOO
@@ -52,15 +52,15 @@ export class ReWOO {
   private worker: Worker;
   private solver: SolverAgent;
   private subscriptions = new Subscription();
-  private state: State = { session_id: uuid(), task: '' };
-  private tools: Tool[] = [];
+  private state: ReWooState = { session_id: uuid(), task: '' };
+  private tools: ReWooTool[] = [];
 
   /**
    * Creates a new ReWOO instance
    * @param ai_config - Configuration for AI models and parameters
    * @param tools - Array of tools available for task execution
    */
-  constructor(ai_config: AiConfig, tools: Tool[]) {
+  constructor(ai_config: AiConfig, tools: ReWooTool[]) {
     this.planner = new PlannerAgent(ai_config, tools, event_bus);
     this.worker = new Worker(ai_config, tools, event_bus);
     this.solver = new SolverAgent(ai_config, event_bus);
@@ -93,7 +93,7 @@ export class ReWOO {
   /**
    * Gets a copy of the current state
    */
-  get current_state(): State {
+  get current_state(): ReWooState {
     return { ...this.state };
   }
 
@@ -101,7 +101,7 @@ export class ReWOO {
    * Gets evidence records for the current session
    * Maps internal state to evidence table schema
    */
-  get evidence_records(): EvidenceRecord[] {
+  get evidence_records(): ReWooEvidenceRecord[] {
     return Object.entries(this.state.results || {}).map(
       ([variable, content], idx) => ({
         session_id: this.state.session_id,
@@ -124,7 +124,7 @@ export class ReWOO {
    * @param task - The task to process
    * @returns Promise<State> - Final state with results
    */
-  async process(task: string): Promise<State> {
+  async process(task: string): Promise<ReWooState> {
     this.state = {
       session_id: this.state.session_id,
       task,

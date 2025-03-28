@@ -1,7 +1,6 @@
 // ~/src/ReACT/tools/helpers.ts
 
 import { z } from 'zod';
-import { ApiRequestError } from '../services/library.service';
 
 export interface ToolResponse {
   result?: string;
@@ -26,8 +25,6 @@ export const handle_tool_error = (
     error_details = error.message;
   } else if (error instanceof z.ZodError) {
     error_details = error.errors.map((e) => e.message).join(', ');
-  } else if (error instanceof ApiRequestError) {
-    error_details = error.toString();
   } else if (error) {
     error_details = String(error);
   }

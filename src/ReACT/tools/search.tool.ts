@@ -24,6 +24,7 @@ interface TavilyResponse {
   query: string;
   results: TavilySearchResult[];
   response_time: number;
+  answer?: string;
 }
 
 /**
@@ -90,16 +91,22 @@ export const search_web_tool = async ({
       );
     }
 
-    const picked_results = search_results.results
-      .sort((a, b) => b.score - a.score)
-      .map((result: TavilySearchResult) => ({
-        title: result.title,
-        description: result.content,
-        url: result.url,
-      }))
-      .slice(0, 5);
+    let formatted_results = '';
 
-    return { result: JSON.stringify(picked_results) };
+    if (search_results.answer) {
+      formatted_results += `## Tavily Answer\n\n${search_results.answer}\n\n## Supporting Sources\n\n`;
+    }
+
+    formatted_results += search_results.results
+      .sort((a, b) => b.score - a.score)
+      .map(
+        (result: TavilySearchResult) =>
+          `### ${result.title}\n\n${result.content}\n\n[Source](${result.url})`
+      )
+      .slice(0, 5)
+      .join('\n\n---\n\n');
+
+    return { result: formatted_results };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(

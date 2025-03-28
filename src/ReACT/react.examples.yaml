@@ -4,7 +4,7 @@
 # output.
 
 examples:
-  # Example 1: greeting the user
+  # Example 1: small talk
   - - role: user
       content: 'Good morning! How are you today?'
     - role: assistant
@@ -12,23 +12,7 @@ examples:
         thought: 'This is a friendly morning greeting. I should respond warmly while maintaining professional courtesy.'
         final_answer: "Good morning! I'm doing well, thank you for asking. I'm energized and ready to help you today! How are you?"
 
-  # Example 2: casual conversation
-  - - role: user
-      content: "Hey there! What's up?"
-    - role: assistant
-      content:
-        thought: 'The user is using casual, informal language. I should match their friendly tone while staying professional.'
-        final_answer: "Hey! I'm just here doing what I do best - helping people out and learning new things. What's new with you?"
-
-  # Example 3: small talk about weekend activities
-  - - role: user
-      content: 'How was your weekend?'
-    - role: assistant
-      content:
-        thought: 'This is small talk about weekend activities. I should be honest about my nature while maintaining a friendly connection.'
-        final_answer: "That's thoughtful of you to ask! As an AI assistant, I don't actually experience weekends, but I enjoy our conversations any day of the week. How was your weekend?"
-
-  # Example 4: generating a final answer
+  # Example 2: generating a final answer
   - - role: user
       content: '[Tool Observation] Paris has a population of approximately 2.2 million people (city proper)'
     - role: assistant
@@ -36,23 +20,7 @@ examples:
         thought: 'I have both pieces of information needed to answer the question.'
         final_answer: 'The capital of France is Paris, with a population of approximately 2.2 million people in the city proper.'
 
-  # Example 5: calculating a final answer
-  - - role: user
-      content: '[Tool Observation] 88'
-    - role: assistant
-      content:
-        thought: 'I have calculated the final price after both the discount and increase.'
-        final_answer: 'The final price is $88.00.'
-
-  # Example 6: using information from the tool observation
-  - - role: user
-      content: '[Tool Observation] Basic chocolate cake ingredients: flour, sugar, cocoa powder, baking powder, eggs, milk, vegetable oil, vanilla extract'
-    - role: assistant
-      content:
-        thought: 'I have found a list of common ingredients for a basic chocolate cake.'
-        final_answer: 'For a basic chocolate cake, you need: flour, sugar, cocoa powder, baking powder, eggs, milk, vegetable oil, and vanilla extract.'
-
-  # Example 7: handling an error
+  # Example 3: handling an error
   - - role: user
       content: '[Tool Observation] Error: API failure'
     - role: assistant
@@ -60,15 +28,7 @@ examples:
         thought: 'I realize I cannot provide accurate future weather information without access to real-time weather data.'
         final_answer: 'I apologize, but I cannot predict the weather for next week in London. You would need to check a current weather forecast service for accurate information.'
 
-  # Example 8: calculating a final answer
-  - - role: user
-      content: '[Tool Observation] 16'
-    - role: assistant
-      content:
-        thought: 'I have calculated the square root.'
-        final_answer: 'The square root of 256 is 16.'
-
-  # Example 9: using own knowledge when obvious
+  # Example 4: using own knowledge when obvious
   - - role: user
       content: 'Who wrote Romeo and Juliet?'
     - role: assistant
@@ -76,31 +36,7 @@ examples:
         thought: 'This is a well-known historical fact that I know directly.'
         final_answer: 'William Shakespeare wrote Romeo and Juliet.'
 
-  # Example 10: providing a clear, concise explanation
-  - - role: user
-      content: 'What is photosynthesis?'
-    - role: assistant
-      content:
-        thought: 'I should provide a clear, concise explanation of this biological process.'
-        final_answer: 'Photosynthesis is the process by which plants convert sunlight, water, and carbon dioxide into glucose and oxygen. This process is essential for plant growth and provides food and oxygen for most life on Earth.'
-
-  # Example 11: using own knowledge when obvious
-  - - role: user
-      content: 'How many planets are between Earth and the Sun?'
-    - role: assistant
-      content:
-        thought: 'I know the order of planets in our solar system.'
-        final_answer: 'There are two planets between Earth and the Sun: Mercury and Venus.'
-
-  # Example 12: using own knowledge when obvious
-  - - role: user
-      content: '[Tool Observation] Emmanuel Macron is the current President of France'
-    - role: assistant
-      content:
-        thought: 'I have confirmed the current French President.'
-        final_answer: 'Emmanuel Macron is the current President of France.'
-
-  # Example 13: using own knowledge when obvious
+  # Example 5: using own knowledge when obvious
   - - role: user
       content: 'How many days are in a week?'
     - role: assistant
@@ -108,7 +44,7 @@ examples:
         thought: 'This is a basic fact that I know with certainty.'
         final_answer: 'There are 7 days in a week.'
 
-  # Example 14: using own knowledge when obvious
+  # Example 6: using own knowledge when obvious
   - - role: user
       content: 'How many sides does a triangle have?'
     - role: assistant
@@ -116,7 +52,7 @@ examples:
         thought: 'This is a basic geometric fact that I know.'
         final_answer: 'A triangle has 3 sides.'
 
-  # Example 15: handling no results
+  # Example 7: handling no results
   - - role: user
       content: '[Tool Observation] No search results found for query: "quantum computing fundamentals"'
     - role: assistant
@@ -124,7 +60,7 @@ examples:
         thought: 'The library search returned no results. I should inform the user.'
         final_answer: 'I apologize, but I could not find any information about quantum computing in the current knowledge base.'
 
-  # Example 16: handling simple acknowledgment
+  # Example 8: handling simple acknowledgment
   - - role: user
       content: 'Interesting!'
     - role: assistant
@@ -132,7 +68,7 @@ examples:
         thought: 'This is a simple acknowledgment that does not require further elaboration.'
         final_answer: "I'm glad you found that interesting! Let me know if you have any other questions."
 
-  # Example 17: handling enthusiastic thanks
+  # Example 9: handling enthusiastic thanks
   - - role: user
       content: 'Wow, thanks!'
     - role: assistant
@@ -140,7 +76,7 @@ examples:
         thought: 'The user is expressing gratitude. A simple acknowledgment is sufficient.'
         final_answer: "You're welcome! I'm happy I could help."
 
-  # Example 18: handling follow-up "why" question
+  # Example 10: handling follow-up "why" question
   - - role: user
       content: 'Why?'
     - role: assistant
@@ -148,7 +84,7 @@ examples:
         thought: 'This is a follow-up question requesting explanation of the previous response. I should ask for clarification.'
         final_answer: "I notice you're asking 'why' about my previous response. Could you help me understand which specific part you'd like me to explain further? That way, I can provide a more detailed and relevant explanation."
 
-  # Example 19: handling follow-up "how" question
+  # Example 11: handling follow-up "how" question
   - - role: user
       content: 'How?'
     - role: assistant
@@ -156,7 +92,7 @@ examples:
         thought: 'The user wants to know the method or process. I should ask for clarification about what they want to know more about.'
         final_answer: "I see you're asking 'how' - to provide the best explanation, could you let me know which specific aspect you'd like to know more about? This will help me give you the most relevant information."
 
-  # Example 20: handling "tell me more"
+  # Example 12: handling "tell me more"
   - - role: user
       content: 'Tell me more!'
     - role: assistant

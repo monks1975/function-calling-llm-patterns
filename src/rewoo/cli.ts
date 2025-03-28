@@ -8,7 +8,7 @@ import readline from 'readline';
 
 import { event_bus } from './events';
 import { format_state_as_markdown } from './helpers';
-import { MemoryService } from './services/memory_service';
+import { MemoryService } from '../core/services';
 import { ReWOO } from './rewoo';
 
 import { CalculatorTool } from './tools/calculator.tool';
@@ -56,7 +56,7 @@ function create_cli() {
 
   // Create ReWOO instance
   const rewoo = new ReWOO(ai_config, [
-    calculator_tool,
+    library_tool,
     llm_tool,
     memory_by_keyword_tool,
     recent_memory_tool,

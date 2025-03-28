@@ -2,10 +2,10 @@
 
 import Handlebars from 'handlebars';
 
-import { AiGenerate, type AiConfig } from './ai';
+import { AiGenerate, type AiConfig } from '../core';
 
 import type { EventBus } from './events';
-import type { State } from './types';
+import type { ReWooState } from './types';
 
 // Template for the system prompt
 // prettier-ignore
@@ -97,7 +97,7 @@ export class SolverAgent {
     });
   }
 
-  async solve(state: State): Promise<string> {
+  async solve(state: ReWooState): Promise<string> {
     try {
       // Emit solver start event
       this.event_bus.emit({

@@ -1,24 +1,25 @@
 // ~/src/ReWOO/types.ts
-import { z } from 'zod';
+// ReWOO-specific types
 
+import { z } from 'zod';
 import type { ChatCompletion } from 'openai/resources/chat';
 
 // Step definition schema
-export const StepSchema = z.object({
+export const ReWooStepSchema = z.object({
   plan: z.string(),
   variable: z.string().regex(/^#E\d+$/),
   tool: z.string(),
   args: z.string(),
 });
 
-export type Step = z.infer<typeof StepSchema>;
+export type ReWooStep = z.infer<typeof ReWooStepSchema>;
 
 // State schema for tracking execution
-export const StateSchema = z.object({
+export const ReWooStateSchema = z.object({
   session_id: z.string(),
   task: z.string(),
   plan_string: z.string().optional(),
-  steps: z.array(StepSchema).optional(),
+  steps: z.array(ReWooStepSchema).optional(),
   results: z.record(z.string()).optional(),
   result: z.string().optional(),
   timestamp: z.number().optional(),
@@ -35,38 +36,22 @@ export const StateSchema = z.object({
     .optional(),
 });
 
-export type State = z.infer<typeof StateSchema>;
+export type ReWooState = z.infer<typeof ReWooStateSchema>;
 
 // Tool interface for all tools to implement
-export interface Tool {
+export interface ReWooTool {
   name: string;
   description: string;
   execute(args: string): Promise<string>;
 }
 
-export interface AiRetryNotification {
-  type: 'retry';
-  attempt: number;
-  backoff_ms: number;
-  error: string;
-  status?: number;
-  headers?: Record<string, string>;
-  error_details?: Record<string, any>;
-}
-
 // Base completion type used throughout the application
-export type CompletionWithRequestId = ChatCompletion & {
+export type ReWooCompletion = ChatCompletion & {
   _request_id?: string | null;
 };
 
-// Legacy callbacks for AI operations
-export interface AiCallbacks {
-  onRetry?: (notification: AiRetryNotification) => void;
-  onCompletion?: (completion: CompletionWithRequestId) => void;
-}
-
 // EvidenceRecord is a record of evidence for a session
-export interface EvidenceRecord {
+export interface ReWooEvidenceRecord {
   session_id: string;
   evidence_id: string; // E1, E2, etc.
   content: string;
@@ -74,7 +59,7 @@ export interface EvidenceRecord {
   step_variable: string;
 }
 
-export interface PlanExample {
+export interface ReWooPlanExample {
   task: string;
   required_tools: string[];
   plan_steps: string[];

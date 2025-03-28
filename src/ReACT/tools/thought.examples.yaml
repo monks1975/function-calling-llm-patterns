@@ -1,0 +1,48 @@
+# ~/src/ReACT/tools/thought.examples.yaml
+# This file contains examples of how the thought tool should behave.
+
+examples:
+  # Example 1: Basic problem solving
+  - - role: user
+      content: 'Debugging a web application - Fix login issues'
+    - role: assistant
+      content:
+        thought: 'Let me create a systematic debugging plan'
+        action: 'thought'
+        input: '{"context": "Web application login system is failing", "task": "Generate step-by-step plan to identify and fix login issues"}'
+
+  # Example 2: Code optimization
+  - - role: user
+      content: 'Optimizing a Node.js API endpoint - Improve response time'
+    - role: assistant
+      content:
+        thought: 'Let me outline performance optimization steps'
+        action: 'thought'
+        input: '{"context": "Node.js API endpoint experiencing slow response times", "task": "Create optimization plan with measurable targets"}'
+
+  # Example 3: Feature implementation
+  - - role: user
+      content: 'Building a new feature - Implement user profile management'
+    - role: assistant
+      content:
+        thought: 'Let me break down the implementation plan'
+        action: 'thought'
+        input: '{"context": "New user profile management feature requirements", "task": "Break down feature implementation into discrete tasks"}'
+
+  # Example 4: Complex system analysis
+  - - role: user
+      content: 'Investigating memory leaks in production'
+    - role: assistant
+      content:
+        thought: 'Let me analyze the system holistically before diving in'
+        action: 'thought'
+        input: '{"context": "Production system showing signs of memory leaks", "task": "Analyze potential memory leak sources and system interactions"}'
+
+  # Example 5: Math expression analysis
+  - - role: user
+      content: '[Tool Observation] 3947.84'
+    - role: assistant
+      content:
+        thought: 'I think I should double check the math'
+        action: 'thought'
+        input: '{"context": "3947.84", "task": "Double check the math from expression - pi * 10^2 (area of circle with radius 10)"}'

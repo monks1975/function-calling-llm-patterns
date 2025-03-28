@@ -13,11 +13,10 @@ import {
 } from './search.tool';
 
 import {
-  planner_tool,
-  text_schema as planner_text_schema,
-} from './planner.tool';
+  thought_tool,
+  text_schema as thought_text_schema,
+} from './thought.tool';
 
-import { create_library_tool } from './library.tool';
 import { load_and_convert_yaml } from '../helpers';
 
 export interface ToolDefinition {
@@ -60,12 +59,8 @@ const search_web_examples = load_and_convert_yaml(
   path.join(__dirname, 'search.examples.yaml')
 );
 
-const library_examples = load_and_convert_yaml(
-  path.join(__dirname, 'library.examples.yaml')
-);
-
-const planner_examples = load_and_convert_yaml(
-  path.join(__dirname, 'planner.examples.yaml')
+const thought_examples = load_and_convert_yaml(
+  path.join(__dirname, 'thought.examples.yaml')
 );
 
 // Tool factory definitions
@@ -93,41 +88,23 @@ const search_web_factory: ToolFactory = {
   examples: search_web_examples,
 };
 
-const planner_factory: ToolFactory = {
+const thought_factory: ToolFactory = {
   create: () => ({
-    name: 'Planner',
-    alternative_names: ['Plan', 'Planning', 'Progress', 'Self-reflection'],
-    description:
-      'An internal tool for planning and assessing progress toward answering the question',
-    schema: planner_text_schema,
-    execute: planner_tool,
+    name: 'Thought',
+    alternative_names: ['Think', 'Analyze', 'Reason', 'Thought Process'],
+    description: 'A tool for generating structured thinking steps and analysis',
+    schema: thought_text_schema,
+    execute: thought_tool,
   }),
   requires_config: false,
-  examples: planner_examples,
-};
-
-const library_factory: ToolFactory<LibraryToolConfig> = {
-  create: (config) => {
-    if (!config?.library_uuid) {
-      throw new Error('library_uuid is required for library tool');
-    }
-    return create_library_tool(
-      config.library_uuid,
-      config.library_name,
-      config.library_description
-    );
-  },
-  requires_config: true,
-  required_config: ['library_uuid', 'library_name', 'library_description'],
-  examples: library_examples,
+  examples: thought_examples,
 };
 
 // Define available tools without instantiating them
 export const available_tools = {
   calculator: calculator_factory,
   search_web: search_web_factory,
-  planner: planner_factory,
-  library: library_factory,
+  thought: thought_factory,
 } as const;
 
 export function init_tools_from_config(config: ToolsConfig): ToolDefinition[] {

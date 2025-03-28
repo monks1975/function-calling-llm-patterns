@@ -1,8 +1,8 @@
 // ~/src/ReWOO/tools/library.tool.ts
 
-import { api_fetch_and_parse_json } from '../services/library.service';
+import { api_fetch_and_parse_json } from '../../core/services';
 
-import type { Tool } from '../types';
+import type { ReWooTool } from '../types';
 
 interface PaginatedResponse<T> {
   count: number;
@@ -32,7 +32,7 @@ interface ChunkMetadata {
   page?: number;
 }
 
-export class LibraryTool implements Tool {
+export class LibraryTool implements ReWooTool {
   name = 'Library';
   description =
     'Returns a list of relevant documents from a library that will be relevant to the user query.';

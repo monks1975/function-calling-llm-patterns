@@ -1,4 +1,4 @@
-// ~/src/ReACT/services/library.service.ts
+// ~/src/core/services/library.service.ts
 
 import dotenv from 'dotenv';
 

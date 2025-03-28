@@ -1,11 +1,11 @@
 // ~/src/ReWOO/tools/memory_by_keyword.tool.ts
 
-import { AiGenerate, type AiConfig } from '../ai';
-import { PostgresDatabase } from '../db/postgres';
+import { AiGenerate, type AiConfig } from '../../core';
+import { PostgresDatabase } from '../../core/db/postgres';
 
-import type { Tool } from '../types';
+import type { ReWooTool } from '../types';
 
-export class MemoryByKeywordTool implements Tool {
+export class MemoryByKeywordTool implements ReWooTool {
   name = 'MemoryByKeyword';
   description =
     'Retrieves memories related to the given query using semantic or keyword search.';

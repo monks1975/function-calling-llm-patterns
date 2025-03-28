@@ -1,8 +1,8 @@
 // ~/src/ReWOO/tools/tavily.tool.ts
 
-import type { Tool } from '../types';
+import type { ReWooTool } from '../types';
 
-export class TavilyTool implements Tool {
+export class TavilyTool implements ReWooTool {
   name = 'Tavily';
   description =
     'Searches the web using the Tavily API. Useful for fetching up-to-date information.';

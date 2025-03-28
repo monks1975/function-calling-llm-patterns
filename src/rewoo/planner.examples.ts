@@ -1,8 +1,8 @@
 // ~/src/ReWOO/planner.examples.ts
 
-import type { PlanExample } from './types';
+import type { ReWooPlanExample } from './types';
 
-export const examples: PlanExample[] = [
+export const examples: ReWooPlanExample[] = [
   /*
    * LLM Tools
    * Examples demonstrating usage with only the default LLM tool

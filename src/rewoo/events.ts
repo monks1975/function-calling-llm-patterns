@@ -1,25 +1,28 @@
 // ~/src/ReWOO/events.ts
+// ReWOO-specific event handling
 
 import { Observable, Subject, filter, share } from 'rxjs';
+
 import type { ChatCompletion } from 'openai/resources/chat';
-import type { Step, State } from './types';
+import type { ReWooStep, ReWooState } from './types';
+import type { EventBus as CoreEventBus } from '../core/types';
 
 // Define a discriminated union of events
 export type ReWOOEvent =
-  | { type: 'plan_created'; plan: Partial<State> }
-  | { type: 'tool_start'; step: Step; args: string }
-  | { type: 'tool_complete'; step: Step; result: string }
-  | { type: 'solution_found'; solution: string; state: State }
+  | { type: 'plan_created'; plan: Partial<ReWooState> }
+  | { type: 'tool_start'; step: ReWooStep; args: string }
+  | { type: 'tool_complete'; step: ReWooStep; result: string }
+  | { type: 'solution_found'; solution: string; state: ReWooState }
   | { type: 'info'; message: string }
   | { type: 'retry'; attempt: number; error: Error; backoff_ms: number }
-  | { type: 'error'; error: Error; context?: string; step?: Step }
+  | { type: 'error'; error: Error; context?: string; step?: ReWooStep }
   | {
       type: 'completion';
       completion: ChatCompletion;
       source: 'planner' | 'solver' | 'llm';
     };
 
-export class EventBus {
+export class EventBus implements CoreEventBus {
   private events$ = new Subject<ReWOOEvent>();
 
   // Public observable that shares a single subscription

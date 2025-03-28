@@ -1,14 +1,14 @@
-// ~/src/ReAct/moderation.ts
+// ~/src/ReAct/moderator.ts
 
 import OpenAI from 'openai';
 
 import type { Moderation } from 'openai/resources/moderations';
 
-interface ModerationConfig {
+interface ModeratorConfig {
   api_key: string;
 }
 
-export interface ModerationResult {
+export interface ModeratorResult {
   flagged: boolean;
   categories: Moderation.Categories;
   category_scores: Moderation.CategoryScores;
@@ -17,7 +17,7 @@ export interface ModerationResult {
 export class Moderator {
   private openai: OpenAI;
 
-  constructor(config: ModerationConfig) {
+  constructor(config: ModeratorConfig) {
     this.openai = new OpenAI({
       apiKey: config.api_key,
     });
@@ -28,7 +28,7 @@ export class Moderator {
    * @param text The text to moderate
    * @returns A ModerationResult object containing the moderation results
    */
-  async moderate(text: string): Promise<ModerationResult> {
+  async moderate(text: string): Promise<ModeratorResult> {
     try {
       const response = await this.openai.moderations.create({
         model: 'omni-moderation-latest',

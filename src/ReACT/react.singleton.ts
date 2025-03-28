@@ -2,9 +2,10 @@
 // Singleton wrapper for ReActAgent
 // Suitable for CLI applications where only one agent is needed at a time
 
-import { ReActAgent, type ReActCallbacks } from './react.agent';
+import { ReActAgent } from './react.agent';
 
-import type { AiConfig } from './ai';
+import type { AiConfig } from '../core/types';
+import type { ReActCallbacks } from './types';
 import type { ToolsConfig } from './tools/setup';
 
 /**

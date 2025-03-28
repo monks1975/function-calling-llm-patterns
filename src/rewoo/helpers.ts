@@ -1,6 +1,6 @@
 // ~/src/ReWOO/helpers.ts
 
-import { State } from './types';
+import { ReWooState } from './types';
 
 // function escape_markdown(text: string): string {
 //   // Escape special markdown characters while preserving line breaks
@@ -15,7 +15,7 @@ function escape_block(text: string): string {
   return text.replace(/`/g, '\\`').replace(/```/g, '\\`\\`\\`');
 }
 
-function format_header(state: State): string[] {
+function format_header(state: ReWooState): string[] {
   const md: string[] = [];
   md.push(`# ReWOO Session Log\n`);
   md.push(`**Session ID:** \`${escape_block(state.session_id)}\`\n`);
@@ -36,7 +36,7 @@ function format_plan(plan_string: string): string[] {
   ];
 }
 
-function format_steps(steps: State['steps']): string[] {
+function format_steps(steps: ReWooState['steps']): string[] {
   if (!steps?.length) return [];
 
   const md: string[] = [`\n## Execution Steps\n`];
@@ -52,7 +52,7 @@ function format_steps(steps: State['steps']): string[] {
   return md;
 }
 
-function format_results(results: State['results']): string[] {
+function format_results(results: ReWooState['results']): string[] {
   if (!results) return [];
 
   const md: string[] = [`\n## Results\n`];
@@ -96,7 +96,7 @@ function format_errors(errors: string[]): string[] {
   return md;
 }
 
-function format_token_usage(token_usage: State['token_usage']): string[] {
+function format_token_usage(token_usage: ReWooState['token_usage']): string[] {
   if (!token_usage?.length) return [];
 
   const md: string[] = [
@@ -129,7 +129,7 @@ function format_token_usage(token_usage: State['token_usage']): string[] {
   return md;
 }
 
-export function format_state_as_markdown(state: State): string {
+export function format_state_as_markdown(state: ReWooState): string {
   return [
     ...format_header(state),
     ...format_plan(state.plan_string ?? ''),

@@ -1,8 +1,8 @@
 // ~/src/ReWOO/tools/calculator.tool.ts
 
-import { Tool } from '../types';
+import { ReWooTool } from '../types';
 
-export class CalculatorTool implements Tool {
+export class CalculatorTool implements ReWooTool {
   name = 'Calculator';
   description =
     'A tool for performing mathematical calculations. Input must be a valid math.js expression.';

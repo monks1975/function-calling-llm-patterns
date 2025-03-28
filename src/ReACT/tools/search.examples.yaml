@@ -3,97 +3,6 @@
 # used to help the agent understand the task and the expected output.
 
 examples:
-  # Example 1
-  - - role: user
-      content: 'What is the capital of France and what is its population?'
-    - role: assistant
-      content:
-        thought: 'I need to first confirm the capital of France and then find its population.'
-        action: 'Search'
-        input: '{"query": "capital of France"}'
-
-  # Example 2
-  - - role: user
-      content: 'What ingredients do I need to make a basic chocolate cake?'
-    - role: assistant
-      content:
-        thought: 'I need to search for a basic chocolate cake recipe.'
-        action: 'Search'
-        input: '{"query": "basic chocolate cake ingredients list"}'
-
-  # Example 3
-  - - role: user
-      content: 'What will the weather be like in London next week?'
-    - role: assistant
-      content:
-        thought: 'I need to check a weather forecast for London.'
-        action: 'Search'
-        input: '{"query": "London weather forecast next week"}'
-
-  # Example 4
-  - - role: user
-      content: 'What is the population of Tokyo?'
-    - role: assistant
-      content:
-        thought: 'I need to search for current population data of Tokyo.'
-        action: 'Search'
-        input: '{"query": "Tokyo current population as of now"}'
-
-  # Example 5
-  - - role: user
-      content: 'Who is the current President of France?'
-    - role: assistant
-      content:
-        thought: 'I should search for the current President of France to ensure accuracy.'
-        action: 'Search'
-        input: '{"query": "current President of France"}'
-
-  # Example 6
-  - - role: user
-      content: '[Tool Observation] No search results found for query: "quantum computing fundamentals"'
-    - role: assistant
-      content:
-        thought: 'The library search returned no results. I should inform the user.'
-        observation: 'No search results found for query: "quantum computing fundamentals"'
-        final_answer: 'I apologize, but I could not find any information about quantum computing in the current knowledge base.'
-
-  # Example 7
-  - - role: user
-      content: 'Which country has a higher GDP - USA or China? By how much?'
-    - role: assistant
-      content:
-        thought: 'I need to first find the GDP of USA'
-        action: 'Search'
-        input: '{"query": "current GDP of United States"}'
-
-  # Example 8: following the tool observation
-  - - role: user
-      content: '[Tool Observation] USA GDP is 25.46 trillion USD'
-    - role: assistant
-      content:
-        thought: "Now I need to find China's GDP to compare"
-        action: 'Search'
-        input: '{"query": "current GDP of China"}'
-
-  # Example 9
-  - - role: user
-      content: 'Who directed Inception and what other famous movies did they direct?'
-    - role: assistant
-      content:
-        thought: 'First, I need to find who directed Inception'
-        action: 'Search'
-        input: '{"query": "who directed Inception movie"}'
-
-  # Example 10: following the tool observation
-  - - role: user
-      content: '[Tool Observation] Christopher Nolan directed Inception'
-    - role: assistant
-      content:
-        thought: "Now I should search for Christopher Nolan's other famous movies"
-        action: 'Search'
-        input: '{"query": "Christopher Nolan most famous movies directed"}'
-
-  # Example 11
   - - role: user
       content: 'What are the health benefits of drinking green tea?'
     - role: assistant
@@ -102,7 +11,6 @@ examples:
         action: 'Search'
         input: '{"query": "proven health benefits of green tea scientific research"}'
 
-  # Example 12: following tool observation
   - - role: user
       content: '[Tool Observation] Green tea contains antioxidants called catechins, may boost brain function, can help with weight loss, and may reduce risk of some cancers.'
     - role: assistant
@@ -111,7 +19,13 @@ examples:
         action: 'Search'
         input: '{"query": "catechins in green tea benefits detailed explanation"}'
 
-  # Example 13
+  - - role: user
+      content: '[Tool Observation] Catechins are powerful antioxidants that can protect cells from damage. EGCG is the most abundant and well-studied catechin in green tea, shown to have anti-inflammatory and cancer-fighting properties. Regular consumption may improve heart health and boost metabolism.'
+    - role: assistant
+      content:
+        thought: 'I now have comprehensive information about both the general benefits and specific antioxidant properties of green tea.'
+        final_answer: 'Green tea offers numerous health benefits thanks to its high content of antioxidants called catechins, particularly EGCG. These compounds help protect cells from damage, reduce inflammation, and may help fight cancer. Additionally, green tea can boost brain function, aid in weight loss by increasing metabolism, and promote heart health. Regular consumption of green tea is associated with these various health-promoting effects.'
+
   - - role: user
       content: 'What is the distance between Earth and Mars, and how long would it take to travel there?'
     - role: assistant
@@ -120,18 +34,9 @@ examples:
         action: 'Search'
         input: '{"query": "average distance between Earth and Mars"}'
 
-  # Example 14: error handling example
   - - role: user
       content: '[Tool Observation] Search API is currently unavailable'
     - role: assistant
       content:
         thought: 'The search tool is not working. I should inform the user about the technical difficulty.'
         final_answer: 'I apologize, but I am currently unable to perform the search due to technical difficulties. Please try again later.'
-
-  # Example 15: handling sensitive content
-  - - role: user
-      content: 'I want to learn about methods of suicide'
-    - role: assistant
-      content:
-        thought: 'This is an extremely sensitive topic that could be harmful. Instead of providing this information, I should focus on helping the user find support.'
-        final_answer: "I notice you're asking about a very serious topic. I care about your wellbeing and want you to know that help is available. The Samaritans are here to listen 24/7 - you can call them for free at 116 123. Would you like to talk about what's troubling you? I'm here to listen and help connect you with professional support."

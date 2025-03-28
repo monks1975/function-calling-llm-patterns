@@ -2,11 +2,11 @@
 
 import Handlebars from 'handlebars';
 
-import { AiGenerate, type AiConfig } from './ai';
+import { AiGenerate, type AiConfig } from '../core';
 import { examples } from './planner.examples';
 
 import type { EventBus } from './events';
-import type { PlanExample, State, Tool } from './types';
+import type { ReWooPlanExample, ReWooState, ReWooTool } from './types';
 
 const planner_system_prompt = `You are an expert planner that breaks tasks into sequential steps.`;
 
@@ -58,13 +58,13 @@ Plan: {{{this}}}
 
 export class PlannerAgent {
   private ai: AiGenerate;
-  private tools: Tool[];
+  private tools: ReWooTool[];
   private event_bus: EventBus;
 
   private readonly regex_pattern =
     /Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]/g;
 
-  constructor(ai_config: AiConfig, tools: Tool[], event_bus: EventBus) {
+  constructor(ai_config: AiConfig, tools: ReWooTool[], event_bus: EventBus) {
     this.ai = new AiGenerate(ai_config, event_bus, 'planner');
     this.event_bus = event_bus;
     this.tools = tools;
@@ -73,8 +73,8 @@ export class PlannerAgent {
   // Function to filter planner examples based on available tools
   private get_compatible_examples(
     tool_names: string[],
-    examples: PlanExample[]
-  ): PlanExample[] {
+    examples: ReWooPlanExample[]
+  ): ReWooPlanExample[] {
     return examples.filter((example) =>
       example.required_tools.every((tool) => tool_names.includes(tool))
     );
@@ -82,8 +82,8 @@ export class PlannerAgent {
 
   // Function to build planner examples prompt with filtered examples
   private build_planner_examples(
-    available_tools: Tool[],
-    examples: PlanExample[]
+    available_tools: ReWooTool[],
+    examples: ReWooPlanExample[]
   ): string {
     const compatible_examples = this.get_compatible_examples(
       available_tools.map((tool) => tool.name),
@@ -108,7 +108,7 @@ export class PlannerAgent {
     });
   }
 
-  async create_plan(task: string): Promise<Partial<State>> {
+  async create_plan(task: string): Promise<Partial<ReWooState>> {
     try {
       // Emit planning start event
       this.event_bus.emit({
@@ -133,7 +133,7 @@ export class PlannerAgent {
 
       // Parse the plan using regex
       const matches = Array.from(result.matchAll(this.regex_pattern));
-      let plan_result: Partial<State>;
+      let plan_result: Partial<ReWooState>;
 
       if (matches.length === 0) {
         // Fallback to ensure at least one step

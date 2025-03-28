@@ -1,10 +1,11 @@
-// ~/src/ReWOO/services/memory_service.ts
+// ~/src/core/services/memory_service.ts
 
 import { v4 as uuid } from 'uuid';
 
+import { AiGenerate } from '../ai';
 import { PostgresDatabase } from '../db/postgres';
 
-import { AiGenerate, type AiConfig } from '../ai';
+import { type AiConfig } from '../types/ai';
 
 export class MemoryService {
   private ai: AiGenerate;
