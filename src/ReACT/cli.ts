@@ -75,10 +75,26 @@ class ReactCli {
         console.log(color('\nTool Observation: ') + observation.data);
       },
       onChunk: (chunk: string) => {
-        console.log(cyan('\nResponse: ') + chunk);
+        // console.log(cyan('\nResponse: ') + chunk);
       },
       onIteration: (iteration: number) => {
         console.log(gray(`\nIteration ${iteration}`));
+      },
+      onFinalAnswer: (answer: string) => {
+        const state = ReActAgentSingleton.current_state;
+
+        if (!state) {
+          console.log(gray('\nNo state available'));
+          return;
+        }
+
+        const loggable_state = {
+          ...state,
+          tools: Object.fromEntries(state.tools),
+          tool_name_map: Object.fromEntries(state.tool_name_map),
+        };
+
+        console.log(gray(JSON.stringify(loggable_state, null, 2)));
       },
     };
   }

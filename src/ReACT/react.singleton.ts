@@ -7,6 +7,7 @@ import { ReActAgent } from './react.agent';
 import type { AiConfig } from '../core/types';
 import type { ReActCallbacks } from './types';
 import type { ToolsConfig } from './tools/setup';
+import type { ReActState } from './types';
 
 /**
  * Singleton wrapper for ReActAgent
@@ -169,5 +170,27 @@ export class ReActAgentSingleton {
     if (this.instance) {
       this.instance.abort();
     }
+  }
+
+  /**
+   * Get the current state of the agent
+   * @returns The current ReActState or null if no agent exists
+   */
+  public static get current_state(): ReActState | null {
+    if (!this.instance) {
+      return null;
+    }
+    return this.instance.current_state;
+  }
+
+  /**
+   * Get the current session ID
+   * @returns The current session ID or null if no agent exists
+   */
+  public static get session_id(): string | null {
+    if (!this.instance) {
+      return null;
+    }
+    return this.instance.session_id;
   }
 }
