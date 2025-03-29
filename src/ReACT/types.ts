@@ -63,7 +63,6 @@ export interface ReActState {
 // Configuration for ReACT agent
 export interface ReActConfig {
   max_iterations: number;
-  use_planner_frequency: number;
   tools: Map<string, ToolDefinition>;
   tool_name_map: Map<string, string>;
   original_question: string | null;
