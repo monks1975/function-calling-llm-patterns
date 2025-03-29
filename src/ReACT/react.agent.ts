@@ -212,7 +212,7 @@ export class ReActAgent extends AiGenerate {
     callbacks?: ReActCallbacks
   ): Promise<string> {
     try {
-      // Get context messages and apply moderation if needed
+      // Get latest conversation messages
       const context_messages = this.get_context_messages();
 
       // Call the parent class's get_completion method with the possibly moderated messages
@@ -221,7 +221,17 @@ export class ReActAgent extends AiGenerate {
         { type: 'json_object' },
         {
           onRetry: callbacks?.onRetry,
-          onCompletion: callbacks?.onCompletion,
+          onCompletion: (completion) => {
+            if (completion.usage) {
+              this.track_token_usage({
+                source: 'model_response',
+                prompt_tokens: completion.usage.prompt_tokens,
+                completion_tokens: completion.usage.completion_tokens,
+                total_tokens: completion.usage.total_tokens,
+              });
+            }
+            callbacks?.onCompletion?.(completion);
+          },
         }
       );
 
