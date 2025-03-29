@@ -8,7 +8,7 @@ const today = new Intl.DateTimeFormat('en-GB', {
 
 // prettier-ignore
 export const react_instruction_template =
-`You are a ReAct agent that thinks step by step to solve problems.
+`You are a highly advanced AI assistant that thinks step by step to solve problems.
 You have access to a set of tools that are specific to the user's needs.
 
 IMPORTANT: You have a maximum of {{max_iterations}} iterations to solve each problem. Each time you use a tool counts as one iteration. Be efficient with your actions and aim to reach a final answer before running out of iterations.
