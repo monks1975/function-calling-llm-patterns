@@ -20,7 +20,6 @@ interface ExampleAssistantMessage {
   content: ExampleAssistantResponse;
 }
 
-// Make Example type more explicit - user followed by assistant
 type TrainingExample = [ExampleUserMessage, ExampleAssistantMessage];
 
 function convert_to_training_format(examples: TrainingExample[]): string {
@@ -44,7 +43,6 @@ function convert_to_training_format(examples: TrainingExample[]): string {
     .join('\n\n');
 }
 
-// Load and convert YAML file
 function load_and_convert_yaml(file_path: string): string {
   const file_content = fs.readFileSync(file_path, 'utf8');
   const yaml_content = yaml.load(file_content) as {
