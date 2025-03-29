@@ -88,13 +88,7 @@ class ReactCli {
           return;
         }
 
-        const loggable_state = {
-          ...state,
-          tools: Object.fromEntries(state.tools),
-          tool_name_map: Object.fromEntries(state.tool_name_map),
-        };
-
-        console.log(gray(JSON.stringify(loggable_state, null, 2)));
+        console.log(gray(JSON.stringify(state, null, 2)));
       },
     };
   }
