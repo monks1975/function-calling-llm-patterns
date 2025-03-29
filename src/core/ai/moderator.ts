@@ -1,4 +1,4 @@
-// ~/src/ReAct/moderator.ts
+// ~/src/core/ai/moderator.ts
 
 import OpenAI from 'openai';
 
