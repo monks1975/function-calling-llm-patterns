@@ -17,6 +17,7 @@ const SYSTEM_PROMPT =
 const THOUGHT_PROMPT = 
 `Take a breath and think through the following context and task carefully:
 
+User Question: {{user_question}}
 Context: {{context}}
 Task: {{task}}
 
@@ -33,6 +34,7 @@ const thought_template = Handlebars.compile(THOUGHT_PROMPT);
 dotenv.config();
 
 export const schema = z.object({
+  user_question: z.string().min(1, 'User question is required'),
   context: z.string().min(1, 'Context is required'),
   task: z.string().min(1, 'Task is required'),
 });
@@ -57,12 +59,13 @@ export type ThoughtToolParams = z.infer<typeof schema>;
  * Output: { result: "1. First, I need to understand the login flow..." }
  */
 export const thought_tool = async ({
+  user_question = '',
   context = '',
   task = '',
 }: ThoughtToolParams): Promise<ToolResponse> => {
   try {
     // Validate input
-    const validated_input = schema.parse({ context, task });
+    const validated_input = schema.parse({ user_question, context, task });
 
     const groq_api_key = process.env.GROQ_API_KEY;
 
