@@ -112,6 +112,7 @@ class ReactCli {
           const callbacks = this.create_callbacks();
 
           const response = await ReActAgentSingleton.answer(input, callbacks);
+
           await this.handle_response(response);
         } catch (error: unknown) {
           const error_message =

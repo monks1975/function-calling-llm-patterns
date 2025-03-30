@@ -124,7 +124,7 @@ export class ReActAgentSingleton {
       process.removeAllListeners('uncaughtException');
 
       // Clean up on normal exit
-      process.on('exit', () => {
+      process.on('beforeExit', () => {
         this.cleanup();
       });
 
