@@ -118,7 +118,13 @@ export class ReActAgent extends AiGenerate {
   }
 
   get current_state(): ReActState {
-    return { ...this.state };
+    return {
+      ...this.state,
+      history: {
+        ...this.state.history,
+        token_usage: this.message_handler.get_token_usage(),
+      },
+    };
   }
 
   private async handle_max_iterations_reached(
