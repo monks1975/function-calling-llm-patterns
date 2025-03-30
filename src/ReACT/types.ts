@@ -24,7 +24,7 @@ export interface ReActCallbacks extends AiCallbacks {
 // Types for action/observation history
 export interface ReActAction {
   action: string;
-  input: any;
+  input: unknown;
   observation: string;
 }
 
@@ -45,27 +45,40 @@ export interface ReActEvidenceRecord {
   step_type: 'thought' | 'action' | 'observation' | 'final_answer';
 }
 
-// Core ReACT state interface
-export interface ReActState {
+// Tool state management
+export interface ReActToolState {
+  tools: Map<string, ToolDefinition>;
+  tool_name_map: Map<string, string>;
+}
+
+// History state management
+export interface ReActHistoryState {
+  previous_actions: ReActAction[];
+  previous_thoughts: string[];
+  token_usage?: ReActTokenUsage[];
+}
+
+// Session state management
+export interface ReActSessionState {
   session_id: string;
   task: string;
   timestamp: number;
   max_iterations: number;
-  tools: Map<string, ToolDefinition>;
-  tool_name_map: Map<string, string>;
   original_question: string | null;
-  previous_actions: ReActAction[];
-  previous_thoughts: string[];
-  token_usage?: ReActTokenUsage[];
+}
+
+// Core ReACT state interface
+export interface ReActState {
+  tools: ReActToolState;
+  history: ReActHistoryState;
+  session: ReActSessionState;
   errors?: Error[];
 }
 
 // Configuration for ReACT agent
 export interface ReActConfig {
   max_iterations: number;
-  tools: Map<string, ToolDefinition>;
-  tool_name_map: Map<string, string>;
-  original_question: string | null;
-  previous_actions: ReActAction[];
-  previous_thoughts: string[];
+  tools: ReActToolState;
+  history: ReActHistoryState;
+  session: ReActSessionState;
 }
