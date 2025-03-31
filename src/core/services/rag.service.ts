@@ -1,4 +1,4 @@
-// ~/src/core/services/library.service.ts
+// ~/src/core/services/rag.service.ts
 
 import dotenv from 'dotenv';
 
@@ -14,29 +14,31 @@ if (!DOJO_API_BASE_URL || !DOJO_API_KEY) {
 }
 
 // Define more specific success/error types
-type ApiSuccess<T> = {
+type RagApiSuccess<T> = {
   success: true;
   status: number;
   data: T;
 };
 
-type ApiFailure<E> = {
+type RagApiFailure<E> = {
   success: false;
   status: number;
   data: E;
 };
 
-type ApiFetchData<Data, ErrorData> = ApiSuccess<Data> | ApiFailure<ErrorData>;
+type RagApiFetchData<Data, ErrorData> =
+  | RagApiSuccess<Data>
+  | RagApiFailure<ErrorData>;
 
 // Define custom headers type
-type CustomHeaders = HeadersInit & {
+type RagCustomHeaders = HeadersInit & {
   Accept?: string;
   Authorization?: string;
   Referrer?: string;
 };
 
-interface CustomRequestInit extends RequestInit {
-  headers?: CustomHeaders;
+interface RagCustomRequestInit extends RequestInit {
+  headers?: RagCustomHeaders;
   timeout?: number;
 }
 
@@ -67,7 +69,7 @@ const STATUS_CODE_DESCRIPTIONS: Record<HttpStatusCode, string> = {
   [HttpStatusCode.GATEWAY_TIMEOUT]: 'Gateway Timeout',
 };
 
-const DEFAULT_HEADERS: CustomHeaders = {
+const DEFAULT_HEADERS: RagCustomHeaders = {
   Accept: 'application/json',
   Authorization: `Token ${DOJO_API_KEY}`,
   Referrer: new URL(DOJO_API_BASE_URL).origin,
@@ -75,7 +77,7 @@ const DEFAULT_HEADERS: CustomHeaders = {
 
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
-export class ApiRequestError extends Error {
+export class RagApiRequestError extends Error {
   constructor(
     message: string,
     public status?: number,
@@ -110,7 +112,7 @@ const get_status_code_description = (status: number): string => {
 // Enhanced fetch function with timeout
 const fetch_with_timeout = async (
   url: string,
-  config: CustomRequestInit = {}
+  config: RagCustomRequestInit = {}
 ): Promise<Response> => {
   const { timeout = DEFAULT_TIMEOUT, ...rest_config } = config;
 
@@ -130,12 +132,12 @@ const fetch_with_timeout = async (
 };
 
 // Enhanced fetch function for API requests with proper error handling
-export const api_fetch = async (
+const rag_api_fetch = async (
   url: string,
-  config: CustomRequestInit = {}
+  config: RagCustomRequestInit = {}
 ): Promise<Response> => {
   const full_url = `${DOJO_API_BASE_URL}${url}`;
-  const merged_config: CustomRequestInit = {
+  const merged_config: RagCustomRequestInit = {
     ...config,
     headers: {
       ...DEFAULT_HEADERS,
@@ -150,7 +152,7 @@ export const api_fetch = async (
       const response_body = await response.json().catch(() => undefined);
       const status_description = get_status_code_description(response.status);
 
-      throw new ApiRequestError(
+      throw new RagApiRequestError(
         `API request failed: ${status_description}`,
         response.status,
         response.statusText,
@@ -161,12 +163,12 @@ export const api_fetch = async (
 
     return response;
   } catch (err) {
-    if (err instanceof ApiRequestError) {
+    if (err instanceof RagApiRequestError) {
       throw err;
     }
 
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new ApiRequestError(
+      throw new RagApiRequestError(
         'Request timeout exceeded',
         undefined,
         'Timeout',
@@ -175,7 +177,7 @@ export const api_fetch = async (
       );
     }
 
-    throw new ApiRequestError(
+    throw new RagApiRequestError(
       'Failed to complete API request',
       undefined,
       undefined,
@@ -206,11 +208,11 @@ export const api_fetch = async (
  *   handleError(result.data);
  * }
  */
-export const api_fetch_and_parse_json = async <Data, ErrorData>(
+export const rag_fetch_and_parse_json = async <Data, ErrorData>(
   url: string,
-  config: Partial<CustomRequestInit> = {}
-): Promise<ApiFetchData<Data, ErrorData>> => {
-  const response = await api_fetch(url, config as CustomRequestInit);
+  config: Partial<RagCustomRequestInit> = {}
+): Promise<RagApiFetchData<Data, ErrorData>> => {
+  const response = await rag_api_fetch(url, config as RagCustomRequestInit);
   let data: Data | ErrorData;
 
   try {
@@ -223,7 +225,7 @@ export const api_fetch_and_parse_json = async <Data, ErrorData>(
     success: response.status < 300,
     status: response.status,
     data: response.status < 300 ? (data as Data) : (data as ErrorData),
-  } as ApiFetchData<Data, ErrorData>;
+  } as RagApiFetchData<Data, ErrorData>;
 };
 
 /**
@@ -240,14 +242,14 @@ export const api_fetch_and_parse_json = async <Data, ErrorData>(
  * Example:
  * // In an API route handler:
  * app.get('/api/users/:id', async (req, res) => {
- *   return api_fetch_as_json_response<UserData, ErrorData>(`/users/${req.params.id}`);
+ *   return rag_api_fetch_as_json_response<UserData, ErrorData>(`/users/${req.params.id}`);
  * });
  */
-export const api_fetch_as_json_response = async <Data, ErrorData>(
+export const rag_fetch_as_response = async <Data, ErrorData>(
   url: string,
-  config: Partial<CustomRequestInit> = {}
+  config: Partial<RagCustomRequestInit> = {}
 ): Promise<Response> => {
-  const { status, data } = await api_fetch_and_parse_json<Data, ErrorData>(
+  const { status, data } = await rag_fetch_and_parse_json<Data, ErrorData>(
     url,
     config
   );

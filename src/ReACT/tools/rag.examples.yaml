@@ -1,0 +1,110 @@
+# ~/src/ReACT/tools/rag.examples.yaml
+# This file contains a few examples of how the RAG tool should behave. It
+# is used to help the agent understand the task and the expected output.
+
+examples:
+  # Example 1 - Initial RAG search
+  - - role: user
+      content: 'What does the documentation say about deploying AI agents?'
+    - role: assistant
+      content:
+        thought: 'I should search the knowledge base for information about deploying AI agents.'
+        action: 'Library'
+        input: { 'query': 'how to deploy AI agents deployment steps' }
+
+  # Example 2 - Multi-step research
+  - - role: user
+      content: 'How do neural networks process images?'
+    - role: assistant
+      content:
+        thought: 'I should first search for general information about neural networks and image processing.'
+        action: 'RAG'
+        input: { 'query': 'neural networks image processing computer vision' }
+
+  # Example 3 - Follow-up search
+  - - role: user
+      content: '[Tool Observation] {"results": "### API Security Overview\n\n**Relevance:** 95%\n\nAPI security requires multiple layers of protection. Key measures include: 1) Strong authentication using JWT or OAuth 2.0, 2) Role-based access control (RBAC), 3) Input validation and sanitization, 4) Rate limiting and throttling, 5) Encryption in transit using TLS\n\n---\n\n### Authentication Best Practices\n\n**Relevance:** 92%\n\nWhen implementing API authentication, always use industry standard protocols. OAuth 2.0 is recommended for delegated access. API keys should be rotated regularly and never exposed in client-side code."}'
+    - role: assistant
+      content:
+        thought: 'The initial results about API security were helpful, but I should look for more specific best practices.'
+        action: 'RAG'
+        input:
+          {
+            'query': 'API security best practices authentication authorization',
+          }
+
+  # Example 4 - RAG then internet search
+  - - role: user
+      content: 'Explain how to implement rate limiting.'
+    - role: assistant
+      content:
+        thought: 'Let me first check our internal library for rate limiting implementation details.'
+        action: 'API Security Library guideline - FINAL'
+        input: { 'query': 'rate limiting implementation examples code' }
+
+  # Example 5 - RAG then internet search
+  - - role: user
+      content: '[Tool Observation] {"results": "[{\"text\": \"Basic rate limiting can be implemented using token buckets or sliding windows. Key components: counter storage, time window tracking, and request rejection logic.\", \"id\": 1}]"}'
+    - role: assistant
+      content:
+        thought: 'I found basic information but should search the internet for more detailed implementation examples.'
+        action: 'Search'
+        input:
+          {
+            'query': 'rate limiting implementation code examples token bucket sliding window',
+          }
+
+  # Example 6 - Handle RAG API error gracefully
+  - - role: user
+      content: 'Error: API request failed: Unauthorized - API key may be invalid or missing | Status: 401 (Unauthorized)'
+    - role: assistant
+      content:
+        thought: 'The library search tool is experiencing authentication issues. I should try searching the web instead for this information.'
+        action: 'Search Web'
+        input: { 'query': 'Steve Wozniak Apple employment history timeline' }
+
+  # Example 7 - Historical research
+  - - role: user
+      content: 'What were the major causes of the Industrial Revolution?'
+    - role: assistant
+      content:
+        thought: 'My history library likely has historical documents and academic resources about the Industrial Revolution.'
+        action: 'My History Library'
+        input:
+          {
+            'query': 'Industrial Revolution major causes economic social factors',
+          }
+
+  # Example 8 - Legal document analysis
+  - - role: user
+      content: 'What are the key provisions in the Fair Labor Standards Act?'
+    - role: assistant
+      content:
+        thought: 'I should check the legal documentation section of the library for labor law information.'
+        action: "Janet's Legal docs"
+        input:
+          {
+            'query': 'Fair Labor Standards Act FLSA key provisions requirements',
+          }
+
+  # Example 9 - Medical research
+  - - role: user
+      content: 'What are the recommended treatments for type 2 diabetes?'
+    - role: assistant
+      content:
+        thought: 'The medical RAG should have current treatment guidelines.'
+        action: 'Medical RAG'
+        input:
+          {
+            'query': 'type 2 diabetes treatment guidelines recommendations management',
+          }
+
+  # Example 10 - Environmental studies
+  - - role: user
+      content: 'How does ocean acidification affect marine ecosystems?'
+    - role: assistant
+      content:
+        thought: "There is a 'Environmental Science Library' that should have detailed information about ocean acidification."
+        action: 'Environmental Science Library'
+        input:
+          { 'query': 'ocean acidification marine ecosystem impacts effects' }
