@@ -1,6 +1,6 @@
 // ~/src/ReWOO/tools/library.tool.ts
 
-import { api_fetch_and_parse_json } from '../../core/services';
+import { rag_fetch_and_parse_json } from '../../core/services';
 
 import type { ReWooTool } from '../types';
 
@@ -50,7 +50,7 @@ export class LibraryTool implements ReWooTool {
         pipeline__document__library: this.library_uuid,
       });
 
-      const response = await api_fetch_and_parse_json<
+      const response = await rag_fetch_and_parse_json<
         PaginatedResponse<ChunkSearch>,
         { error: string }
       >(`/documents/chunks/search/?${search_params.toString()}`);
