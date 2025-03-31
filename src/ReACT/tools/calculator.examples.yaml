@@ -3,6 +3,7 @@
 # is used to help the agent understand the task and the expected output.
 
 examples:
+  # Example 1 - Basic division
   - - role: user
       content: 'Calculate how many apples each person gets if we have 125 apples to distribute among 5 people.'
     - role: assistant
@@ -11,6 +12,7 @@ examples:
         action: 'calculator'
         input: '{"expression": "125 / 5"}'
 
+  # Example 2 - Percentage increase
   - - role: user
       content: '[Tool Observation] 80'
     - role: assistant
@@ -19,6 +21,7 @@ examples:
         action: 'calculator'
         input: '{"expression": "80 * (1 + 0.10)"}'
 
+  # Example 3 - Material cost calculation
   - - role: user
       content: 'I need to calculate the total cost of materials. The wood costs $245, paint costs $89, and I need 3 sets of these.'
     - role: assistant
@@ -27,6 +30,7 @@ examples:
         action: 'calculator'
         input: '{"expression": "245 + 89"}'
 
+  # Example 4 - Total cost multiplication
   - - role: user
       content: '[Tool Observation] 334'
     - role: assistant
@@ -35,6 +39,7 @@ examples:
         action: 'calculator'
         input: '{"expression": "334 * 3"}'
 
+  # Example 5 - Temperature conversion
   - - role: user
       content: '[Tool Observation] 212'
     - role: assistant

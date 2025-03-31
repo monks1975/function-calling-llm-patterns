@@ -48,17 +48,17 @@ export const calculator_tool = async ({
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(
-        'calculate-math-expression',
+        'Calculator',
         'Validation error: ' + error.errors.map((e) => e.message).join(', ')
       );
     }
     // Handle math.js errors more descriptively
     if (error instanceof Error) {
       return handle_tool_error(
-        'calculate-math-expression',
+        'Calculator',
         `Failed to evaluate expression '${expression}': ${error.message}`
       );
     }
-    return handle_tool_error('calculate-math-expression', undefined, error);
+    return handle_tool_error('Calculator', undefined, error);
   }
 };
