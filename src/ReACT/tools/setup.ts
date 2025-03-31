@@ -17,6 +17,8 @@ import {
   text_schema as thought_text_schema,
 } from './thought.tool';
 
+import { create_rag_tool } from './rag.tool';
+
 import { load_and_convert_yaml } from '../helpers';
 
 export interface ToolDefinition {
@@ -63,6 +65,10 @@ const thought_examples = load_and_convert_yaml(
   path.join(__dirname, 'thought.examples.yaml')
 );
 
+const rag_examples = load_and_convert_yaml(
+  path.join(__dirname, 'rag.examples.yaml')
+);
+
 // Tool factory definitions
 const calculator_factory: ToolFactory = {
   create: () => ({
@@ -101,11 +107,28 @@ const thought_factory: ToolFactory = {
   examples: thought_examples,
 };
 
+const rag_factory: ToolFactory<LibraryToolConfig> = {
+  create: (config) => {
+    if (!config?.library_uuid) {
+      throw new Error('library_uuid is required for library tool');
+    }
+    return create_rag_tool(
+      config.library_uuid,
+      config.library_name,
+      config.library_description
+    );
+  },
+  requires_config: true,
+  required_config: ['library_uuid', 'library_name', 'library_description'],
+  examples: rag_examples,
+};
+
 // Define available tools without instantiating them
 export const available_tools = {
   calculator: calculator_factory,
   search_web: search_web_factory,
   thought: thought_factory,
+  rag: rag_factory,
 } as const;
 
 export function init_tools_from_config(config: ToolsConfig): ToolDefinition[] {
