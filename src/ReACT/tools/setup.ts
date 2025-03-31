@@ -46,7 +46,7 @@ interface ToolFactory<TConfig = void> {
 }
 
 // Tool-specific configuration interfaces
-interface LibraryToolConfig {
+interface RagToolConfig {
   library_uuid: string;
   library_name: string;
   library_description: string;
@@ -107,7 +107,7 @@ const thought_factory: ToolFactory = {
   examples: thought_examples,
 };
 
-const rag_factory: ToolFactory<LibraryToolConfig> = {
+const rag_factory: ToolFactory<RagToolConfig> = {
   create: (config) => {
     if (!config?.library_uuid) {
       throw new Error('library_uuid is required for library tool');
