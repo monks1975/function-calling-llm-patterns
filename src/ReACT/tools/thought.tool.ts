@@ -47,15 +47,20 @@ export type ThoughtToolParams = z.infer<typeof schema>;
  * Thought Tool
  *
  * A tool for generating thinking steps using the AI model.
- * Takes context and task as input and returns a structured thought process.
+ * Takes user question, context and task as input and returns a structured thought process.
  *
+ * @param user_question - The original question or query from the user
  * @param context - The current context or situation
  * @param task - The specific task or problem to think about
  *
  * @returns Object containing the generated thought process or error
  *
  * Example:
- * Input: { context: "Debugging a web app", task: "Fix login issues" }
+ * Input: {
+ *   user_question: "How do I fix the login issues?",
+ *   context: "Debugging a web app",
+ *   task: "Fix login issues"
+ * }
  * Output: { result: "1. First, I need to understand the login flow..." }
  */
 export const thought_tool = async ({
