@@ -58,10 +58,9 @@ export class ReActAgent extends AiGenerate {
       },
       session: {
         session_id: uuid(),
-        task: '',
+        user_input: '',
         timestamp: Date.now(),
         max_iterations,
-        original_question: null,
       },
     };
 
@@ -146,7 +145,7 @@ export class ReActAgent extends AiGenerate {
 
     const max_iterations_reached = Handlebars.compile(max_iterations_template)({
       max_iterations: this.state.session.max_iterations,
-      original_question: this.state.session.original_question,
+      original_question: this.state.session.user_input,
       recent_thoughts,
     });
 
@@ -325,8 +324,11 @@ export class ReActAgent extends AiGenerate {
     return error instanceof Error ? error.message : String(error);
   }
 
-  async answer(question: string, callbacks?: ReActCallbacks): Promise<string> {
-    if (!question || typeof question !== 'string') {
+  async answer(
+    user_input: string,
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
+    if (!user_input || typeof user_input !== 'string') {
       throw new Error('Question must be a non-empty string');
     }
 
@@ -340,13 +342,15 @@ export class ReActAgent extends AiGenerate {
         },
         session: {
           ...this.state.session,
-          task: question,
-          original_question: question,
+          session_id: uuid(),
+          user_input: user_input,
           timestamp: Date.now(),
         },
       };
 
-      this.message_handler.add_message({ role: 'user', content: question });
+      this.message_handler.clear_token_usage();
+
+      this.message_handler.add_message({ role: 'user', content: user_input });
 
       let iterations = 0;
 

@@ -61,10 +61,9 @@ export interface ReActHistoryState {
 // Session state management
 export interface ReActSessionState {
   session_id: string;
-  task: string;
+  user_input: string;
   timestamp: number;
   max_iterations: number;
-  original_question: string | null;
 }
 
 // Core ReACT state interface
