@@ -76,7 +76,7 @@ export const thought_tool = async ({
 
     if (!groq_api_key) {
       return handle_tool_error(
-        'thought',
+        'Thought',
         'Groq API key not found in environment variables'
       );
     }
@@ -104,10 +104,10 @@ export const thought_tool = async ({
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(
-        'thought',
+        'Thought',
         'Validation error: ' + error.errors.map((e) => e.message).join(', ')
       );
     }
-    return handle_tool_error('thought', undefined, error);
+    return handle_tool_error('Thought', undefined, error);
   }
 };
