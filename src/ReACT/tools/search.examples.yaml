@@ -8,7 +8,7 @@ examples:
     - role: assistant
       content:
         thought: 'I should search for scientifically proven health benefits of green tea.'
-        action: 'Search'
+        action: 'Search Web'
         input: '{"query": "proven health benefits of green tea scientific research"}'
 
   - - role: user
@@ -16,7 +16,7 @@ examples:
     - role: assistant
       content:
         thought: 'I should now search for more specific information about the antioxidants in green tea.'
-        action: 'Search'
+        action: 'Search Web'
         input: '{"query": "catechins in green tea benefits detailed explanation"}'
 
   - - role: user
@@ -31,7 +31,7 @@ examples:
     - role: assistant
       content:
         thought: 'I need to first find the average distance between Earth and Mars.'
-        action: 'Search'
+        action: 'Search Web'
         input: '{"query": "average distance between Earth and Mars"}'
 
   - - role: user

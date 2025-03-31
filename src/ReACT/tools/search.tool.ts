@@ -58,7 +58,7 @@ export const search_web_tool = async ({
 
     if (!tavily_api_key) {
       return handle_tool_error(
-        'search-web',
+        'Search Web',
         'Tavily API key not found in environment variables'
       );
     }
@@ -77,7 +77,7 @@ export const search_web_tool = async ({
 
     if (!response.ok) {
       return handle_tool_error(
-        'search-web',
+        'Search Web',
         `Tavily API error: ${response.statusText}`
       );
     }
@@ -86,7 +86,7 @@ export const search_web_tool = async ({
 
     if (!search_results.results?.length) {
       return handle_tool_error(
-        'search-web',
+        'Search Web',
         `No search results found for query: '${validated_input.query}'`
       );
     }
@@ -110,10 +110,10 @@ export const search_web_tool = async ({
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return handle_tool_error(
-        'search-web',
+        'Search Web',
         'Validation error: ' + error.errors.map((e) => e.message).join(', ')
       );
     }
-    return handle_tool_error('search-web', undefined, error);
+    return handle_tool_error('Search Web', undefined, error);
   }
 };
