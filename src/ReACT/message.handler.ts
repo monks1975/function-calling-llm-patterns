@@ -34,4 +34,8 @@ export class ReActMessageHandler {
     this.messages = [];
     this.token_usage = [];
   }
+
+  clear_token_usage(): void {
+    this.token_usage = [];
+  }
 }
