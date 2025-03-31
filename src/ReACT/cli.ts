@@ -45,6 +45,15 @@ class ReactCli {
       calculator: { enabled: true },
       search_web: { enabled: true },
       thought: { enabled: true },
+      rag: {
+        enabled: true,
+        config: {
+          library_uuid: 'be3fe717-64f1-4014-8b03-01c534aefd30',
+          library_name: 'Apple History',
+          library_description:
+            'A collection of documents about Apple Inc. and its products.',
+        },
+      },
     };
 
     return { ai_config, tools_config };
@@ -88,7 +97,7 @@ class ReactCli {
           return;
         }
 
-        console.log(gray(JSON.stringify(state, null, 2)));
+        // console.log(gray(JSON.stringify(state, null, 2)));
       },
     };
   }
@@ -98,12 +107,12 @@ class ReactCli {
       const { ai_config, tools_config } = this.load_config();
       ReActAgentSingleton.initialize(ai_config, tools_config);
 
-      console.log(cyan('\nReAct CLI - Type "q" to quit\n'));
+      console.log(cyan('\nReAct CLI - Type "q", "quit" or "clear" to exit\n'));
 
       while (this.is_running) {
         const input = await this.prompt();
 
-        if (input.toLowerCase() === 'q') {
+        if (['q', 'quit', 'clear'].includes(input.toLowerCase())) {
           this.handle_exit();
           break;
         }
