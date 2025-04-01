@@ -17,27 +17,38 @@ The ReAct system implements a structured approach to problem-solving that combin
 
 The main agent that orchestrates the ReACT pattern:
 
-- Manages conversation flow between user, LLM, and tools
-- Handles error recovery and content moderation
-- Supports self-reflection and planning
-- Configurable iteration limits and planning frequency
+- Manages the core ReAct loop (Thought -> Action -> Observation)
+- Initializes tools based on configuration
+- Handles conversation history and state management
+- Executes tools via `ReActToolExecutor`
+- Interacts with the LLM via `AiGenerate`
+- Manages error handling and iteration limits
+- Provides callbacks for various events (`onChunk`, `onToolObservation`, `onFinalAnswer`, etc.)
+- Contains a `cleanup` method for resource management
 
 ### ReActStream
 
-Provides real-time streaming of agent responses:
+Provides a Node.js `Readable` stream interface for agent interactions:
 
-- Streams thoughts, actions, and final answers
-- Configurable output pacing
-- Natural reading experience with word-by-word streaming
-- Background processing with proper cleanup
+- Wraps a `ReActAgent` instance
+- Streams thoughts, actions, and final answers in real-time
+- Uses `gpt-tokenizer` for natural word/token streaming
+- Configurable options:
+  - `stream_thoughts`: Enable/disable thought streaming
+  - `stream_actions`: Enable/disable action streaming
+  - `typing_speed`: Adjusts the speed of streamed output ('slow', 'normal', 'fast')
+  - `natural_pauses`: Adds delays for punctuation for a more human-like feel
+- Handles background processing and stream lifecycle (creation, destruction, error handling)
 
 ### ReActAgentSingleton
 
 Singleton wrapper for CLI applications:
 
-- Global access to a single ReActAgent instance
-- Automatic cleanup on process exit
-- Handles process signals (SIGINT, uncaught exceptions)
+- Ensures only one `ReActAgent` instance exists globally
+- Provides static methods for initialization (`initialize`), getting the agent (`get_agent`), and cleanup (`cleanup`, `reset`)
+- Automatically handles cleanup on process exit events (SIGINT, uncaughtException, beforeExit)
+- Offers convenience methods like `answer` and `abort` that proxy to the underlying agent instance
+- Suitable for applications needing a single, easily accessible agent
 
 ## Usage
 
@@ -74,6 +85,15 @@ The CLI supports the following commands:
 - `toggle_thoughts` - Toggle streaming of thoughts only
 - `toggle_actions` - Toggle streaming of actions only
 - `q`, `quit`, `clear` - Exit the application
+
+#### Default Tools
+
+The CLI is configured by default with the following tools:
+
+- `calculator`: Performs mathematical calculations.
+- `search_web`: Searches the web for information.
+- `thought`: Allows the agent to record internal thoughts or reflections.
+- `rag`: Retrieves information from a pre-configured knowledge base (Retrieval-Augmented Generation). The default configuration points to an 'Apple History' library.
 
 ### API Mode
 
@@ -114,10 +134,17 @@ const stream_config = {
 
 ### Tool Integration
 
-- Modular tool system
-- Standardized interfaces
-- Dynamic tool loading
-- Error handling and recovery
+- Modular tool system with standardized interfaces (`ToolDefinition`)
+- Dynamic tool loading and configuration via `ToolsConfig`
+- Tools defined with name, description, arguments (using Zod schemas), and an `execute` function
+- Tool examples can be provided for few-shot prompting
+- `ReActToolExecutor` handles:
+  - Finding tools by primary or alternative names (case-insensitive)
+  - Parsing tool input (expects JSON or object)
+  - Calling the tool's `execute` method
+  - Handling tool-specific errors (`ReActToolError`)
+  - Returning the observation (result or error message) to the agent
+- Error handling and recovery for tool execution failures
 
 ### Streaming
 
@@ -142,6 +169,22 @@ const stream_config = {
 - Process signal handling
 - Resource cleanup
 - Content moderation
+
+## Logging
+
+- Each session (initiated by a user question in the CLI) is logged to a Markdown file.
+- Logs are stored in the `src/react/logs/` directory.
+- The filename format is `<session_id>_log.md`.
+- Logs contain:
+  - Session ID, timestamp, and the initial user input.
+  - A detailed step-by-step breakdown of the ReACT process:
+    - Thoughts
+    - Actions taken (tool name)
+    - Input provided to the tool
+    - Observations received from the tool
+  - Any errors encountered during the process.
+  - The final answer provided to the user.
+  - Token usage statistics (prompt, completion, total) broken down by source (e.g., model response).
 
 ## License
 
