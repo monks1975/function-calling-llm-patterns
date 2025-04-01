@@ -47,7 +47,7 @@ npm run plan-cli
 
 ## Requirements
 
-- Node.js v20 or higher
+- Node.js v18 or higher
 - npm or yarn
 - API keys for supported LLM providers (OpenAI, Anthropic, etc.)
 
