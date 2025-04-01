@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/search.tool.ts
+// ~/src/react/tools/search.tool.ts
 
 import { handle_tool_error, zod_schema_to_text } from './helpers';
 import { z } from 'zod';

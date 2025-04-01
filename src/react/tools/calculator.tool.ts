@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/calculator.tool.ts
+// ~/src/react/tools/calculator.tool.ts
 
 import { z } from 'zod';
 import * as math from 'mathjs';

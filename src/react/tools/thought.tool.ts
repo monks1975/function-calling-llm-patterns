@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/thought.tool.ts
+// ~/src/react/tools/thought.tool.ts
 
 import { z } from 'zod';
 import * as dotenv from 'dotenv';

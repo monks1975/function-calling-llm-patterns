@@ -1,4 +1,4 @@
-# ReACT Session Log
+# ReAct Session Log
 
 **Session ID:** `3c6a0fdc-706e-4246-8105-36f9daf2da42`
 
@@ -6,7 +6,7 @@
 
 **User Input:** what is 678\*9765 minus four
 
-## ReACT Process
+## ReAct Process
 
 ### Step 1
 

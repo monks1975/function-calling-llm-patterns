@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/rag.tool.ts
+// ~/src/react/tools/rag.tool.ts
 
 import { z } from 'zod';
 
@@ -63,7 +63,7 @@ export type SearchLibraryToolParams = z.infer<typeof schema>;
  * @param library_uuid - The UUID of the library to search
  * @param library_name - The name of the library to search
  * @param library_description - The description of the library to search
- * @returns A tool definition object that can be used by the ReACT agent
+ * @returns A tool definition object that can be used by the ReAct agent
  *
  * Example usage:
  * ```

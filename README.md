@@ -22,7 +22,7 @@ cp .env.example .env
 3. Run any example:
 
 ```bash
-# ReACT pattern CLI
+# ReAct pattern CLI
 npm run react-cli
 
 # ReWOO pattern CLI
@@ -31,9 +31,9 @@ npm run plan-cli
 
 ## Example Modules
 
-### 1. ReACT Pattern (`src/ReAct/`)
+### 1. ReAct Pattern (`src/ReAct/`)
 
-- Implements the ReACT (Reasoning and Acting) pattern
+- Implements the ReAct (Reasoning and Acting) pattern
 - Interactive CLI and API server
 - Real-time streaming of thoughts and actions
 - Built-in error recovery and content moderation

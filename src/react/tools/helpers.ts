@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/helpers.ts
+// ~/src/react/tools/helpers.ts
 
 import { z } from 'zod';
 
@@ -7,7 +7,7 @@ export interface ToolResponse {
   error?: string;
 }
 
-// Formats tool errors in a consistent way that can be recognized by the ReACT
+// Formats tool errors in a consistent way that can be recognized by the ReAct
 // agent
 export const handle_tool_error = (
   tool_name: string,

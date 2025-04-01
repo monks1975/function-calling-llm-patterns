@@ -63,7 +63,7 @@ function escape_block(text: string): string {
 
 function format_header(state: ReActState): string[] {
   const md: string[] = [];
-  md.push(`# ReACT Session Log\n`);
+  md.push(`# ReAct Session Log\n`);
   md.push(`**Session ID:** \`${escape_block(state.session.session_id)}\`\n`);
   md.push(
     `**Timestamp:** ${new Date(state.session.timestamp).toISOString()}\n`
@@ -152,7 +152,7 @@ export function format_state_as_markdown(state: ReActState): string {
   const thoughts = state.history.previous_thoughts || [];
   const actions = state.history.previous_actions || [];
 
-  md_sections.push('\n## ReACT Process\n');
+  md_sections.push('\n## ReAct Process\n');
 
   const steps = Math.max(thoughts.length, actions.length);
   for (let i = 0; i < steps; i++) {

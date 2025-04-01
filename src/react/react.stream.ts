@@ -22,7 +22,7 @@ const DEFAULT_STREAM_CONFIG: ReActStreamConfig = {
   natural_pauses: false,
 };
 
-// Schema for parsing ReACT agent responses
+// Schema for parsing ReAct agent responses
 const react_response_schema = z.object({
   thought: z.string().optional(),
   action: z.string().optional(),

@@ -1,5 +1,5 @@
-# ~/src/ReACT/react.examples.yaml
-# This file contains a few general examples of how the ReACT agent should
+# ~/src/react/react.examples.yaml
+# This file contains a few general examples of how the ReAct agent should
 # behave. It is used to help the agent understand the task and the expected
 # output.
 

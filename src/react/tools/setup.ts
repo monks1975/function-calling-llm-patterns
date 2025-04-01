@@ -1,4 +1,4 @@
-// ~/src/ReACT/tools/setup.ts
+// ~/src/react/tools/setup.ts
 
 import * as path from 'path';
 

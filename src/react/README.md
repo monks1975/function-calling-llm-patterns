@@ -1,6 +1,6 @@
 # ReAct System
 
-A powerful implementation of the ReACT (Reasoning and Acting) pattern for Large Language Models (LLMs), featuring self-reflection, planning, and streaming capabilities.
+A powerful implementation of the ReAct (Reasoning and Acting) pattern for Large Language Models (LLMs), featuring self-reflection, planning, and streaming capabilities.
 
 ## Overview
 
@@ -15,7 +15,7 @@ The ReAct system implements a structured approach to problem-solving that combin
 
 ### ReActAgent
 
-The main agent that orchestrates the ReACT pattern:
+The main agent that orchestrates the ReAct pattern:
 
 - Manages the core ReAct loop (Thought -> Action -> Observation)
 - Initializes tools based on configuration
@@ -156,7 +156,7 @@ const stream_config = {
 ## Architecture
 
 1. User submits a question
-2. Agent processes through ReACT cycles:
+2. Agent processes through ReAct cycles:
    - Thought: Reasoning about the problem
    - Action: Selecting and executing tools
    - Observation: Processing tool results
@@ -177,7 +177,7 @@ const stream_config = {
 - The filename format is `<session_id>_log.md`.
 - Logs contain:
   - Session ID, timestamp, and the initial user input.
-  - A detailed step-by-step breakdown of the ReACT process:
+  - A detailed step-by-step breakdown of the ReAct process:
     - Thoughts
     - Actions taken (tool name)
     - Input provided to the tool

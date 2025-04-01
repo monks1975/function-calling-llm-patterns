@@ -1,15 +1,15 @@
 // ~/src/react/types.ts
-// ReACT-specific type definitions
+// ReAct-specific type definitions
 
 import type { AiCallbacks } from '../core/types';
 import type { react_response_schema } from './react.schema';
 import type { ToolDefinition } from './tools/setup';
 import type { z } from 'zod';
 
-// Core ReACT response type
+// Core ReAct response type
 export type ReActResponse = z.infer<typeof react_response_schema>;
 
-// ReACT callbacks extending base AI callbacks
+// ReAct callbacks extending base AI callbacks
 export interface ReActCallbacks extends AiCallbacks {
   onChunk?: (chunk: string) => void;
   onToolObservation?: (observation: {
@@ -67,7 +67,7 @@ export interface ReActSessionState {
   final_answer?: string;
 }
 
-// Core ReACT state interface
+// Core ReAct state interface
 export interface ReActState {
   tools: ReActToolState;
   history: ReActHistoryState;
@@ -75,7 +75,7 @@ export interface ReActState {
   errors?: Error[];
 }
 
-// Configuration for ReACT agent
+// Configuration for ReAct agent
 export interface ReActConfig {
   max_iterations: number;
   tools: ReActToolState;
