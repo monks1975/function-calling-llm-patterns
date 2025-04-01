@@ -1,4 +1,4 @@
-// ~/src/ReACT/message.handler.ts
+// ~/src/react/message.handler.ts
 // Handles message management and token tracking
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';

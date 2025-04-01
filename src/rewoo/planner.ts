@@ -1,4 +1,4 @@
-// ~/src/ReWOO/planner.ts
+// ~/src/rewoo/planner.ts
 
 import Handlebars from 'handlebars';
 

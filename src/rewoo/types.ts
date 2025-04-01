@@ -1,4 +1,4 @@
-// ~/src/ReWOO/types.ts
+// ~/src/rewoo/types.ts
 // ReWOO-specific types
 
 import { z } from 'zod';

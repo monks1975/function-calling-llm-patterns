@@ -1,4 +1,4 @@
-// ~/src/ReACT/helpers.ts
+// ~/src/react/helpers.ts
 
 import * as fs from 'fs';
 import * as path from 'path';

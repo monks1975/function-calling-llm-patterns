@@ -1,4 +1,4 @@
-// ~/src/ReACT/cli.ts
+// ~/src/react/cli.ts
 // CLI interface for ReActAgentSingleton
 
 import { blue, green, red, yellow, cyan, gray } from 'ansis';

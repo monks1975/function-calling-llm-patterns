@@ -1,4 +1,4 @@
-// ~/src/ReACT/react.schema.ts
+// ~/src/react/react.schema.ts
 
 import { z } from 'zod';
 

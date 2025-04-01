@@ -1,4 +1,4 @@
-// ~/src/ReACT/react.singleton.ts
+// ~/src/react/react.singleton.ts
 // Singleton wrapper for ReActAgent
 // Suitable for CLI applications where only one agent is needed at a time
 

@@ -1,4 +1,4 @@
-// ~/src/ReWOO/ai.ts
+// ~/src/rewoo/ai.ts
 // ReWOO-specific AI functionality
 
 import { AiGenerate, AiConfig, AiError, ContentModerationError } from '../core';

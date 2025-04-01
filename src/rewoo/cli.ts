@@ -1,4 +1,4 @@
-// ~/src/ReWOO/cli.ts
+// ~/src/rewoo/cli.ts
 
 import { Subscription } from 'rxjs';
 import dotenv from 'dotenv';

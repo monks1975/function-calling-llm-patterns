@@ -1,4 +1,4 @@
-// ~/src/ReWOO/rewoo.ts
+// ~/src/rewoo/rewoo.ts
 //
 // ReWOO (Reasoning WithOut Observation) - A reactive AI workflow engine
 //

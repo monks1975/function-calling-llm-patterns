@@ -1,4 +1,4 @@
-// ~/src/ReACT/react.instructions.ts
+// ~/src/react/react.instructions.ts
 
 const today = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',

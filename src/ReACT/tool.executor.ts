@@ -1,4 +1,4 @@
-// ~/src/ReACT/tool.executor.ts
+// ~/src/react/tool.executor.ts
 // Handles tool execution and mapping
 
 import type { ToolDefinition } from './tools/setup';

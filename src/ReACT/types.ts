@@ -1,4 +1,4 @@
-// ~/src/ReACT/types.ts
+// ~/src/react/types.ts
 // ReACT-specific type definitions
 
 import type { AiCallbacks } from '../core/types';

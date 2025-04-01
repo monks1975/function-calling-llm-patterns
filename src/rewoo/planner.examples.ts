@@ -1,4 +1,4 @@
-// ~/src/ReWOO/planner.examples.ts
+// ~/src/rewoo/planner.examples.ts
 
 import type { ReWooPlanExample } from './types';
 

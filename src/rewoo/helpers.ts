@@ -1,4 +1,4 @@
-// ~/src/ReWOO/helpers.ts
+// ~/src/rewoo/helpers.ts
 
 import { ReWooState } from './types';
 

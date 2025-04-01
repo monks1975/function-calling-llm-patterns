@@ -1,4 +1,4 @@
-// ~/src/ReACT/react.agent.ts
+// ~/src/react/react.agent.ts
 // ReAct agent implementation
 
 import { v4 as uuid } from 'uuid';

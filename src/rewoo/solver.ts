@@ -1,4 +1,4 @@
-// ~/src/ReWOO/solver.ts
+// ~/src/rewoo/solver.ts
 
 import Handlebars from 'handlebars';
 

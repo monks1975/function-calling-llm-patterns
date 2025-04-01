@@ -1,4 +1,4 @@
-// ~/src/ReACT/errors.ts
+// ~/src/react/errors.ts
 // ReAct-specific error types
 
 export class ReActToolError extends Error {

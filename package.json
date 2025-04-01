@@ -3,10 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "react-cli": "ts-node src/ReACT/cli.ts",
-    "rewoo-cli": "ts-node src/ReWOO/cli.ts",
-    "functions": "ts-node src/FUNCTIONS/index.ts",
-    "functions_db": "ts-node src/FUNCTIONS-DB/index.ts",
+    "react-cli": "ts-node src/react/cli.ts",
+    "rewoo-cli": "ts-node src/rewoo/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -1,4 +1,4 @@
-// ~/src/ReWOO/events.ts
+// ~/src/rewoo/events.ts
 // ReWOO-specific event handling
 
 import { Observable, Subject, filter, share } from 'rxjs';

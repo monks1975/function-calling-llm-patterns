@@ -1,4 +1,4 @@
-// ~/src/ReACT/react.stream.ts
+// ~/src/react/react.stream.ts
 // stream implementation for the ReAct agent
 
 import { ReActAgent, type ReActCallbacks } from './react.agent';
