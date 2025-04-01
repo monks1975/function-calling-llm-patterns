@@ -1,4 +1,4 @@
-# OpenAI Node Tool Calls
+# function-calling-patterns
 
 A collection of example implementations for function calling with Large Language Models (LLMs), demonstrating different approaches and patterns.
 
