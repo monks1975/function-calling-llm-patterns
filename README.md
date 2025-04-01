@@ -31,14 +31,14 @@ npm run plan-cli
 
 ## Example Modules
 
-### 1. ReAct Pattern (`src/ReAct/`)
+### 1. ReAct Pattern (`src/react/`)
 
 - Implements the ReAct (Reasoning and Acting) pattern
 - Interactive CLI and API server
 - Real-time streaming of thoughts and actions
 - Built-in error recovery and content moderation
 
-### 2. ReWOO Pattern (`src/ReWOO/`)
+### 2. ReWOO Pattern (`src/rewoo/`)
 
 - Implements the ReWOO (Reasoning Without Output) pattern
 - Focuses on planning and execution phases
