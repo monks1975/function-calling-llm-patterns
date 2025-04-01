@@ -1,6 +1,7 @@
 // ~/src/react/react.stream.ts
 // stream implementation for the ReAct agent
 
+import { encode, decode } from 'gpt-tokenizer';
 import { ReActAgent } from './react.agent';
 import { Readable } from 'stream';
 import { z } from 'zod';
@@ -33,9 +34,9 @@ export class ReActStream {
   private agent: ReActAgent;
   private config: ReActStreamConfig;
   private typing_speeds = {
-    slow: { base: 80, variance: 30 },
-    normal: { base: 40, variance: 15 },
-    fast: { base: 20, variance: 10 },
+    slow: { base: 20, variance: 10 },
+    normal: { base: 10, variance: 5 },
+    fast: { base: 5, variance: 2 },
   };
   private readonly ROUND_DELAY_MS = 100;
   private readonly PUNCTUATION_DELAYS: Record<string, number> = {
@@ -90,81 +91,47 @@ export class ReActStream {
   }
 
   private async stream_words(readable: Readable, text: string) {
-    if (!this.config.natural_pauses) {
-      // Character-by-character streaming for smoother output
-      const speed = this.typing_speeds[this.config.typing_speed || 'normal'];
-
-      for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        readable.push(char);
-
-        // Calculate delay based on character type
-        let delay = speed.base / 2;
-
-        // Add variance to make it feel more natural
-        delay += (Math.random() * 2 - 1) * (speed.variance / 2);
-
-        // Slightly longer pauses for spaces
-        if (char === ' ') {
-          delay *= 1.2;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, Math.max(2, delay)));
-      }
-      return;
-    }
-
-    // Enhanced natural pauses approach
-    const chunks = this.get_natural_chunks(text);
+    // Use GPT tokenizer to break text into natural token chunks
+    const tokens = encode(text);
     const speed = this.typing_speeds[this.config.typing_speed || 'normal'];
 
-    for (const chunk of chunks) {
-      // Stream each character in the chunk
-      for (const char of chunk.text) {
-        readable.push(char);
-        const charDelay =
-          speed.base / 2 + (Math.random() * 2 - 1) * (speed.variance / 2);
+    // Stream text token by token with natural timing
+    let accumulated_text = '';
+
+    for (let i = 0; i < tokens.length; i++) {
+      // Decode the current token to text
+      const token_text = decode([tokens[i]]);
+      accumulated_text += token_text;
+
+      // Add a tiny delay before whitespace at token start to make it feel more natural
+      if (token_text.startsWith(' ') || token_text.startsWith('\n')) {
         await new Promise((resolve) =>
-          setTimeout(resolve, Math.max(2, charDelay))
+          setTimeout(resolve, Math.max(3, speed.base / 4))
         );
       }
 
-      // Apply the pause after the chunk if needed
-      if (chunk.pause > 0) {
-        await new Promise((resolve) => setTimeout(resolve, chunk.pause));
+      readable.push(token_text);
+
+      // Calculate delay based on token complexity
+      const token_length = token_text.length;
+      let delay = speed.base * (Math.min(token_length, 4) / 3);
+
+      // Add some randomness for naturality
+      delay += (Math.random() * 2 - 1) * speed.variance;
+
+      // Add pauses for punctuation if enabled
+      if (this.config.natural_pauses) {
+        const last_char = token_text[token_text.length - 1];
+        const pause = this.PUNCTUATION_DELAYS[last_char] || 0;
+
+        if (pause > 0) {
+          await new Promise((resolve) => setTimeout(resolve, pause));
+          continue;
+        }
       }
+
+      await new Promise((resolve) => setTimeout(resolve, Math.max(2, delay)));
     }
-  }
-
-  private get_natural_chunks(
-    text: string
-  ): Array<{ text: string; pause: number }> {
-    const chunks: Array<{ text: string; pause: number }> = [];
-    let buffer = '';
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      buffer += char;
-
-      // Check for sentence and clause boundaries
-      if (Object.keys(this.PUNCTUATION_DELAYS).includes(char)) {
-        const pause = this.PUNCTUATION_DELAYS[char] || 0;
-        chunks.push({ text: buffer, pause });
-        buffer = '';
-      }
-    }
-
-    // Add any remaining text
-    if (buffer) {
-      chunks.push({ text: buffer, pause: 0 });
-    }
-
-    // If no chunks were created (no punctuation), return the whole text as one chunk
-    if (chunks.length === 0) {
-      return [{ text, pause: 0 }];
-    }
-
-    return chunks;
   }
 
   private async process_question(

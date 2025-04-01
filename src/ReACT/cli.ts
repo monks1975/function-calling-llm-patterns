@@ -22,7 +22,7 @@ class ReactCli {
 
   private use_streaming: boolean = true;
   private stream_config: ReActStreamConfig = {
-    typing_speed: 'fast',
+    typing_speed: 'normal',
   };
 
   constructor() {
