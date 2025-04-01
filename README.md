@@ -27,12 +27,6 @@ npm run react-cli
 
 # ReWOO pattern CLI
 npm run plan-cli
-
-# Simple function calling
-npm run functions
-
-# Database-integrated functions
-npm run functions_db
 ```
 
 ## Example Modules
@@ -50,20 +44,6 @@ npm run functions_db
 - Focuses on planning and execution phases
 - Efficient for complex multi-step tasks
 - Built-in progress tracking and optimization
-
-### 3. Simple Function Calling (`src/Function-calling/`)
-
-- Basic implementation using OpenAI's function calling
-- Direct function definitions with parameter validation
-- Synchronous and asynchronous function support
-- Minimal setup required
-
-### 4. Database-Integrated Functions (`src/Functions-DB/`)
-
-- Extends function calling with database integration
-- Direct SQL querying through LLM functions
-- Transaction support and schema validation
-- Query result caching and optimization
 
 ## Requirements
 
