@@ -47,6 +47,34 @@ Singleton wrapper for CLI applications:
 npm run react-cli
 ```
 
+#### ReAct CLI with Streaming
+
+A command-line interface for interacting with ReAct Agent with streaming capabilities.
+
+#### Setup
+
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Create a `.env` file with `CEREBRAS_API_KEY=your_api_key_here`
+
+#### Usage
+
+Run the CLI:
+
+```bash
+npm run react-cli
+```
+
+#### Commands
+
+The CLI supports the following commands:
+
+- `toggle_mode` - Switch between streaming and standard mode
+- `toggle_stream` - Toggle streaming of thoughts and actions
+- `toggle_thoughts` - Toggle streaming of thoughts only
+- `toggle_actions` - Toggle streaming of actions only
+- `q`, `quit`, `clear` - Exit the application
+
 ### API Mode
 
 ```bash
@@ -70,8 +98,8 @@ const tools_config = {
 };
 
 const stream_config = {
-  stream_thoughts: true,
-  stream_actions: true,
+  stream_thoughts: false,
+  stream_actions: false,
 };
 ```
 

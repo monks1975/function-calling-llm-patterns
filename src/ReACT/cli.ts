@@ -2,21 +2,28 @@
 // CLI interface for ReActAgentSingleton
 
 import { blue, green, red, yellow, cyan, gray } from 'ansis';
-import readline from 'readline';
 import * as dotenv from 'dotenv';
+import readline from 'readline';
 
 import { ReActAgentSingleton } from './react.singleton';
+import { ReActStream } from './react.stream';
 import { save_session_log } from './helpers';
 
 import type { AiConfig } from '../core/types/ai';
-import type { ToolsConfig } from './tools/setup';
 import type { ReActCallbacks } from './types';
+import type { ReActStreamConfig } from './react.stream';
+import type { ToolsConfig } from './tools/setup';
 
 dotenv.config();
 
 class ReactCli {
   private rl: readline.Interface;
   private is_running: boolean = true;
+
+  private use_streaming: boolean = true;
+  private stream_config: ReActStreamConfig = {
+    typing_speed: 'fast',
+  };
 
   constructor() {
     this.rl = readline.createInterface({
@@ -66,8 +73,53 @@ class ReactCli {
     });
   }
 
-  private async handle_response(response: string) {
-    console.log(green('\nAssistant: ') + response + '\n');
+  private async handle_streamed_response(input: string) {
+    console.log(green('\nAssistant: '));
+
+    try {
+      const callbacks = this.create_callbacks();
+      const agent = ReActAgentSingleton.get_agent();
+      const stream = new ReActStream(agent, this.stream_config);
+
+      const readable = stream.create_readable_stream(input, callbacks);
+
+      // Process the stream
+      for await (const chunk of readable) {
+        process.stdout.write(chunk);
+      }
+
+      console.log('\n');
+    } catch (error: unknown) {
+      console.error(
+        red('\nStreaming failed, falling back to standard response: ') +
+          (error instanceof Error ? error.message : 'Unknown error') +
+          '\n'
+      );
+
+      try {
+        await this.handle_standard_response(input);
+      } catch (fallback_error: unknown) {
+        const error_message =
+          fallback_error instanceof Error
+            ? fallback_error.message
+            : 'An unknown error occurred';
+        console.error(
+          red('\nError in fallback response: ') + error_message + '\n'
+        );
+      }
+    }
+  }
+
+  private async handle_standard_response(input: string) {
+    try {
+      const callbacks = this.create_callbacks();
+      const response = await ReActAgentSingleton.answer(input, callbacks);
+      console.log(green('Response: ') + response + '\n');
+    } catch (error: unknown) {
+      const error_message =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      throw new Error(`Standard response failed: ${error_message}`);
+    }
   }
 
   private handle_exit() {
@@ -80,16 +132,12 @@ class ReactCli {
 
   private create_callbacks(): ReActCallbacks {
     return {
-      onToolObservation: (observation: { data: string; is_error: boolean }) => {
-        const color = observation.is_error ? red : gray;
-        console.log(color('\nTool Observation: ') + observation.data);
-      },
-      onChunk: (chunk: string) => {
-        // console.log(cyan('\nResponse: ') + chunk);
-      },
-      onIteration: (iteration: number) => {
-        console.log(gray(`\nIteration ${iteration}`));
-      },
+      onToolObservation: (observation: {
+        data: string;
+        is_error: boolean;
+      }) => {},
+      onChunk: (chunk: string) => {},
+      onIteration: (iteration: number) => {},
       onFinalAnswer: async (answer: string) => {
         const state = ReActAgentSingleton.current_state;
 
@@ -113,6 +161,19 @@ class ReactCli {
       ReActAgentSingleton.initialize(ai_config, tools_config);
 
       console.log(cyan('\nReAct CLI - Type "q", "quit" or "clear" to exit\n'));
+      console.log(cyan('Commands:'));
+      console.log(
+        cyan('  toggle_mode - Switch between streaming and standard mode')
+      );
+      console.log(
+        cyan('  toggle_stream - Toggle streaming of thoughts and actions')
+      );
+      console.log(
+        cyan('  toggle_thoughts - Toggle streaming of thoughts only')
+      );
+      console.log(
+        cyan('  toggle_actions - Toggle streaming of actions only\n')
+      );
 
       while (this.is_running) {
         const input = await this.prompt();
@@ -122,18 +183,62 @@ class ReactCli {
           break;
         }
 
-        try {
-          const callbacks = this.create_callbacks();
+        if (input.toLowerCase() === 'toggle_mode') {
+          this.use_streaming = !this.use_streaming;
+          console.log(
+            yellow(
+              `Using ${this.use_streaming ? 'streaming' : 'standard'} mode`
+            )
+          );
+          continue;
+        }
 
-          const response = await ReActAgentSingleton.answer(input, callbacks);
+        if (input.toLowerCase() === 'toggle_stream') {
+          const current =
+            this.stream_config.stream_thoughts &&
+            this.stream_config.stream_actions;
+          this.stream_config.stream_thoughts = !current;
+          this.stream_config.stream_actions = !current;
+          console.log(
+            yellow(
+              `Streaming ${
+                !current ? 'enabled' : 'disabled'
+              } for thoughts and actions`
+            )
+          );
+          continue;
+        }
 
-          await this.handle_response(response);
-        } catch (error: unknown) {
-          const error_message =
-            error instanceof Error
-              ? error.message
-              : 'An unknown error occurred';
-          console.error(red('\nError: ') + error_message + '\n');
+        if (input.toLowerCase() === 'toggle_thoughts') {
+          this.stream_config.stream_thoughts =
+            !this.stream_config.stream_thoughts;
+          console.log(
+            yellow(
+              `Thought streaming ${
+                this.stream_config.stream_thoughts ? 'enabled' : 'disabled'
+              }`
+            )
+          );
+          continue;
+        }
+
+        if (input.toLowerCase() === 'toggle_actions') {
+          this.stream_config.stream_actions =
+            !this.stream_config.stream_actions;
+          console.log(
+            yellow(
+              `Action streaming ${
+                this.stream_config.stream_actions ? 'enabled' : 'disabled'
+              }`
+            )
+          );
+          continue;
+        }
+
+        if (this.use_streaming) {
+          await this.handle_streamed_response(input);
+        } else {
+          await this.handle_standard_response(input);
         }
       }
     } catch (error) {
