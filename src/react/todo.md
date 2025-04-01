@@ -4,6 +4,6 @@
 - [x] Token counting for costing
 - [ ] ReadableStream wrapper
 - [ ] Example web api
-- [x] Logging as with with ReWoo
+- [x] Logging as with with ReWOO
 
 ## Notes
