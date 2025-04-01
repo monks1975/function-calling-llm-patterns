@@ -247,6 +247,7 @@ export class ReActAgent extends AiGenerate {
       });
 
       if (parsed_response.final_answer) {
+        this.state.session.final_answer = parsed_response.final_answer;
         callbacks?.onFinalAnswer?.(parsed_response.final_answer);
         return { is_final: true, answer: parsed_response.final_answer };
       }

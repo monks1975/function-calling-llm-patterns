@@ -1,6 +1,9 @@
 ## ReACT Todos
 
 - [ ] Smarter use of a new Library tool- Document list, more filters etc
-- [ ] Token counting for costing
+- [x] Token counting for costing
+- [ ] ReadableStream wrapper
+- [ ] Example web api
+- [x] Logging as with with ReWoo
 
 ## Notes

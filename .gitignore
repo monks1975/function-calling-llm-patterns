@@ -14,6 +14,7 @@ build/
 *.log
 tmp/
 npm-debug.log* 
+src/*/logs/*
 
 # Mac specific
 .DS_Store

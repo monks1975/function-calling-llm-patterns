@@ -64,6 +64,7 @@ export interface ReActSessionState {
   user_input: string;
   timestamp: number;
   max_iterations: number;
+  final_answer?: string;
 }
 
 // Core ReACT state interface

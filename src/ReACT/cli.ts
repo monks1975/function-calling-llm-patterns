@@ -6,6 +6,7 @@ import readline from 'readline';
 import * as dotenv from 'dotenv';
 
 import { ReActAgentSingleton } from './react.singleton';
+import { save_session_log } from './helpers';
 
 import type { AiConfig } from '../core/types/ai';
 import type { ToolsConfig } from './tools/setup';
@@ -89,7 +90,7 @@ class ReactCli {
       onIteration: (iteration: number) => {
         console.log(gray(`\nIteration ${iteration}`));
       },
-      onFinalAnswer: (answer: string) => {
+      onFinalAnswer: async (answer: string) => {
         const state = ReActAgentSingleton.current_state;
 
         if (!state) {
@@ -97,7 +98,11 @@ class ReactCli {
           return;
         }
 
-        // console.log(gray(JSON.stringify(state, null, 2)));
+        try {
+          await save_session_log(state);
+        } catch (error) {
+          console.error(red('\nError saving session log: ') + error);
+        }
       },
     };
   }
