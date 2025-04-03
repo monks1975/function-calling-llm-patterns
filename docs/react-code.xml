@@ -1,0 +1,3149 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: src/react/**/*
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+src/
+  react/
+    tools/
+      calculator.examples.yaml
+      calculator.tool.ts
+      helpers.ts
+      rag.examples.yaml
+      rag.tool.ts
+      search.examples.yaml
+      search.tool.ts
+      setup.ts
+      thought.examples.yaml
+      thought.tool.ts
+    cli.ts
+    errors.ts
+    helpers.ts
+    message.handler.ts
+    react.agent.ts
+    react.examples.yaml
+    react.instructions.ts
+    react.schema.ts
+    react.singleton.ts
+    react.stream.ts
+    README.md
+    todo.md
+    tool.executor.ts
+    types.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/react/cli.ts">
+// ~/src/react/cli.ts
+// CLI interface for ReActAgentSingleton
+
+import { blue, green, red, yellow, cyan, gray } from 'ansis';
+import * as dotenv from 'dotenv';
+import readline from 'readline';
+
+import { ReActAgentSingleton } from './react.singleton';
+import { ReActStream } from './react.stream';
+import { save_session_log } from './helpers';
+
+import type { AiConfig } from '../core/types/ai';
+import type { ReActCallbacks } from './types';
+import type { ReActStreamConfig } from './react.stream';
+import type { ToolsConfig } from './tools/setup';
+
+dotenv.config();
+
+class ReactCli {
+  private rl: readline.Interface;
+  private is_running: boolean = true;
+
+  private use_streaming: boolean = true;
+  private stream_config: ReActStreamConfig = {
+    typing_speed: 'normal',
+  };
+
+  constructor() {
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+  }
+
+  private load_config(): { ai_config: AiConfig; tools_config: ToolsConfig } {
+    const cerebras_api_key = process.env.CEREBRAS_API_KEY;
+
+    if (!cerebras_api_key) {
+      throw new Error('Required API keys not found in environment variables');
+    }
+
+    const ai_config: AiConfig = {
+      base_url: 'https://api.cerebras.ai/v1',
+      api_key: cerebras_api_key,
+      model: 'llama-3.3-70b',
+      max_tokens: null,
+      temperature: 0.6,
+      timeout_ms: 30000,
+      max_retries: 3,
+    };
+
+    const tools_config: ToolsConfig = {
+      calculator: { enabled: true },
+      search_web: { enabled: true },
+      thought: { enabled: true },
+      rag: {
+        enabled: true,
+        config: {
+          library_uuid: 'be3fe717-64f1-4014-8b03-01c534aefd30',
+          library_name: 'Apple History',
+          library_description:
+            'A collection of documents about Apple Inc. and its products.',
+        },
+      },
+    };
+
+    return { ai_config, tools_config };
+  }
+
+  private async prompt(): Promise<string> {
+    return new Promise((resolve) => {
+      this.rl.question(blue('You: '), resolve);
+    });
+  }
+
+  private async handle_streamed_response(input: string) {
+    console.log(green('\nAssistant: '));
+
+    try {
+      const callbacks = this.create_callbacks();
+      const agent = ReActAgentSingleton.get_agent();
+      const stream = new ReActStream(agent, this.stream_config);
+
+      const readable = stream.create_readable_stream(input, callbacks);
+
+      // Process the stream
+      for await (const chunk of readable) {
+        process.stdout.write(chunk);
+      }
+
+      console.log('\n');
+    } catch (error: unknown) {
+      console.error(
+        red('\nStreaming failed, falling back to standard response: ') +
+          (error instanceof Error ? error.message : 'Unknown error') +
+          '\n'
+      );
+
+      try {
+        await this.handle_standard_response(input);
+      } catch (fallback_error: unknown) {
+        const error_message =
+          fallback_error instanceof Error
+            ? fallback_error.message
+            : 'An unknown error occurred';
+        console.error(
+          red('\nError in fallback response: ') + error_message + '\n'
+        );
+      }
+    }
+  }
+
+  private async handle_standard_response(input: string) {
+    try {
+      const callbacks = this.create_callbacks();
+      const response = await ReActAgentSingleton.answer(input, callbacks);
+      console.log(green('Response: ') + response + '\n');
+    } catch (error: unknown) {
+      const error_message =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      throw new Error(`Standard response failed: ${error_message}`);
+    }
+  }
+
+  private handle_exit() {
+    console.log(yellow('\nGoodbye! 👋\n'));
+    this.is_running = false;
+    ReActAgentSingleton.cleanup();
+    this.rl.close();
+    process.exit(0);
+  }
+
+  private create_callbacks(): ReActCallbacks {
+    return {
+      onToolObservation: (observation: {
+        data: string;
+        is_error: boolean;
+      }) => {},
+      onChunk: (chunk: string) => {},
+      onIteration: (iteration: number) => {},
+      onFinalAnswer: async (answer: string) => {
+        const state = ReActAgentSingleton.current_state;
+
+        if (!state) {
+          console.log(gray('\nNo state available'));
+          return;
+        }
+
+        try {
+          await save_session_log(state);
+        } catch (error) {
+          console.error(red('\nError saving session log: ') + error);
+        }
+      },
+    };
+  }
+
+  public async start() {
+    try {
+      const { ai_config, tools_config } = this.load_config();
+      ReActAgentSingleton.initialize(ai_config, tools_config);
+
+      console.log(cyan('\nReAct CLI - Type "q", "quit" or "clear" to exit\n'));
+      console.log(cyan('Commands:'));
+      console.log(
+        cyan('  toggle_mode - Switch between streaming and standard mode')
+      );
+      console.log(
+        cyan('  toggle_stream - Toggle streaming of thoughts and actions')
+      );
+      console.log(
+        cyan('  toggle_thoughts - Toggle streaming of thoughts only')
+      );
+      console.log(
+        cyan('  toggle_actions - Toggle streaming of actions only\n')
+      );
+
+      while (this.is_running) {
+        const input = await this.prompt();
+
+        if (['q', 'quit', 'clear'].includes(input.toLowerCase())) {
+          this.handle_exit();
+          break;
+        }
+
+        if (input.toLowerCase() === 'toggle_mode') {
+          this.use_streaming = !this.use_streaming;
+          console.log(
+            yellow(
+              `Using ${this.use_streaming ? 'streaming' : 'standard'} mode`
+            )
+          );
+          continue;
+        }
+
+        if (input.toLowerCase() === 'toggle_stream') {
+          const current =
+            this.stream_config.stream_thoughts &&
+            this.stream_config.stream_actions;
+          this.stream_config.stream_thoughts = !current;
+          this.stream_config.stream_actions = !current;
+          console.log(
+            yellow(
+              `Streaming ${
+                !current ? 'enabled' : 'disabled'
+              } for thoughts and actions`
+            )
+          );
+          continue;
+        }
+
+        if (input.toLowerCase() === 'toggle_thoughts') {
+          this.stream_config.stream_thoughts =
+            !this.stream_config.stream_thoughts;
+          console.log(
+            yellow(
+              `Thought streaming ${
+                this.stream_config.stream_thoughts ? 'enabled' : 'disabled'
+              }`
+            )
+          );
+          continue;
+        }
+
+        if (input.toLowerCase() === 'toggle_actions') {
+          this.stream_config.stream_actions =
+            !this.stream_config.stream_actions;
+          console.log(
+            yellow(
+              `Action streaming ${
+                this.stream_config.stream_actions ? 'enabled' : 'disabled'
+              }`
+            )
+          );
+          continue;
+        }
+
+        if (this.use_streaming) {
+          await this.handle_streamed_response(input);
+        } else {
+          await this.handle_standard_response(input);
+        }
+      }
+    } catch (error) {
+      console.error(
+        red('\nError: ') +
+          (error instanceof Error
+            ? error.message
+            : 'Failed to initialize ReAct CLI')
+      );
+      ReActAgentSingleton.cleanup();
+      process.exit(1);
+    }
+  }
+}
+
+// Start the CLI
+const cli = new ReactCli();
+cli.start();
+</file>
+
+<file path="src/react/errors.ts">
+// ~/src/react/errors.ts
+// ReAct-specific error types
+
+export class ReActToolError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: {
+      available_tools?: string[];
+      tool_name?: string;
+      input?: unknown;
+    }
+  ) {
+    super(message);
+    this.name = 'ReActToolError';
+  }
+}
+
+export class ReActResponseError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: {
+      response?: string;
+      validation_errors?: string[];
+    }
+  ) {
+    super(message);
+    this.name = 'ReActResponseError';
+  }
+}
+
+export class ReActIterationError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: {
+      iteration?: number;
+      max_iterations?: number;
+      recent_thoughts?: string[];
+    }
+  ) {
+    super(message);
+    this.name = 'ReActIterationError';
+  }
+}
+</file>
+
+<file path="src/react/message.handler.ts">
+// ~/src/react/message.handler.ts
+// Handles message management and token tracking
+
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import type { ReActTokenUsage } from './types';
+
+export class ReActMessageHandler {
+  private messages: ChatCompletionMessageParam[] = [];
+  private token_usage: ReActTokenUsage[] = [];
+
+  add_message(message: ChatCompletionMessageParam): void {
+    this.messages.push(message);
+  }
+
+  get_messages(): ChatCompletionMessageParam[] {
+    return [...this.messages];
+  }
+
+  get_context_messages(): ChatCompletionMessageParam[] {
+    const systemMessage = this.messages[0]; // system
+    const recentMessages = this.messages.slice(1).slice(-5); // last 5 messages
+    return [systemMessage, ...recentMessages];
+  }
+
+  track_token_usage(usage: ReActTokenUsage): void {
+    this.token_usage.push(usage);
+  }
+
+  get_token_usage(): ReActTokenUsage[] {
+    return [...this.token_usage];
+  }
+
+  clear(): void {
+    this.messages = [];
+    this.token_usage = [];
+  }
+
+  clear_token_usage(): void {
+    this.token_usage = [];
+  }
+}
+</file>
+
+<file path="src/react/react.agent.ts">
+// ~/src/react/react.agent.ts
+// ReAct agent implementation
+
+import { v4 as uuid } from 'uuid';
+import { z } from 'zod';
+import * as path from 'path';
+import Handlebars from 'handlebars';
+
+import { AiError, AiGenerate } from '../core/ai';
+import { ReActMessageHandler } from './message.handler';
+import { ReActToolExecutor } from './tool.executor';
+
+import {
+  ReActToolError,
+  ReActResponseError,
+  ReActIterationError,
+} from './errors';
+
+import {
+  react_instruction_template,
+  max_iterations_template,
+} from './react.instructions';
+
+import { load_and_convert_yaml } from './helpers';
+import { react_response_schema } from './react.schema';
+
+import {
+  get_tool_examples,
+  get_tools_for_prompt,
+  init_tools_from_config,
+} from './tools/setup';
+
+import type { AiConfig } from '../core/types';
+import type { ToolsConfig } from './tools/setup';
+import type { ReActState, ReActCallbacks, ReActResponse } from './types';
+
+export class ReActAgent extends AiGenerate {
+  private state: ReActState;
+  private message_handler: ReActMessageHandler;
+  private tool_executor: ReActToolExecutor;
+
+  constructor(
+    ai_config: AiConfig,
+    tools_config: ToolsConfig,
+    max_iterations: number = 12
+  ) {
+    super(ai_config);
+
+    // Initialize state
+    this.state = {
+      tools: {
+        tools: new Map(),
+        tool_name_map: new Map(),
+      },
+      history: {
+        previous_actions: [],
+        previous_thoughts: [],
+      },
+      session: {
+        session_id: uuid(),
+        user_input: '',
+        timestamp: Date.now(),
+        max_iterations,
+      },
+    };
+
+    // Initialize components
+    this.message_handler = new ReActMessageHandler();
+    this.tool_executor = new ReActToolExecutor(this.state.tools);
+
+    // Load base few shot examples
+    const base_few_shot = load_and_convert_yaml(
+      path.join(__dirname, 'react.examples.yaml')
+    );
+
+    // Initialize tools from configuration
+    const available_tools = init_tools_from_config(tools_config);
+
+    // Store tools by their primary name and build alternative name mapping
+    available_tools.forEach((tool) => {
+      const primary_name = tool.name.toLowerCase();
+      this.state.tools.tools.set(primary_name, tool);
+
+      // Add mapping for the primary name itself
+      this.state.tools.tool_name_map.set(primary_name, primary_name);
+
+      // Add mappings for alternative names if they exist
+      if (tool.alternative_names) {
+        tool.alternative_names.forEach((alt_name) => {
+          this.state.tools.tool_name_map.set(
+            alt_name.toLowerCase(),
+            primary_name
+          );
+        });
+      }
+    });
+
+    const tools_few_shot = get_tool_examples(tools_config);
+    const tools_description = get_tools_for_prompt(available_tools);
+
+    const system_instructions = Handlebars.compile(react_instruction_template)({
+      base_few_shot,
+      tools: tools_description,
+      tools_few_shot,
+      max_iterations: this.state.session.max_iterations,
+    });
+
+    this.message_handler.add_message({
+      role: 'system',
+      content: system_instructions,
+    });
+  }
+
+  // Getters for state
+  get session_id(): string {
+    return this.state.session.session_id;
+  }
+
+  get current_state(): ReActState {
+    return {
+      ...this.state,
+      history: {
+        ...this.state.history,
+        token_usage: this.message_handler.get_token_usage(),
+      },
+    };
+  }
+
+  private async handle_max_iterations_reached(
+    callbacks?: ReActCallbacks
+  ): Promise<void> {
+    const recent_thoughts = this.message_handler
+      .get_messages()
+      .filter((m) => m.role === 'assistant')
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content as string);
+          return parsed.thought;
+        } catch {
+          return m.content;
+        }
+      })
+      .slice(-3)
+      .join('\n');
+
+    const max_iterations_reached = Handlebars.compile(max_iterations_template)({
+      max_iterations: this.state.session.max_iterations,
+      original_question: this.state.session.user_input,
+      recent_thoughts,
+    });
+
+    callbacks?.onToolObservation?.({
+      data: max_iterations_reached,
+      is_error: true,
+    });
+
+    this.message_handler.add_message({
+      role: 'user',
+      name: 'tool_observation',
+      content: `[Tool Observation] ${max_iterations_reached}`,
+    });
+  }
+
+  private async get_model_response(
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
+    try {
+      const context_messages = this.message_handler.get_context_messages();
+
+      const response = await super.get_completion(
+        context_messages,
+        { type: 'json_object' },
+        {
+          onRetry: callbacks?.onRetry,
+          onCompletion: (completion) => {
+            if (completion.usage) {
+              this.message_handler.track_token_usage({
+                source: 'model_response',
+                prompt_tokens: completion.usage.prompt_tokens,
+                completion_tokens: completion.usage.completion_tokens,
+                total_tokens: completion.usage.total_tokens,
+              });
+            }
+            callbacks?.onCompletion?.(completion);
+          },
+        }
+      );
+
+      callbacks?.onChunk?.(response);
+      return response;
+    } catch (error) {
+      const typedError =
+        error instanceof Error ? error : new Error(String(error));
+      callbacks?.onError?.(typedError);
+      throw typedError;
+    }
+  }
+
+  private parse_react_response(response_text: string): ReActResponse {
+    if (!response_text.trim()) {
+      throw new ReActResponseError('Empty response from model');
+    }
+
+    const prepare_react_response = (response: unknown): unknown => {
+      if (typeof response === 'string') {
+        try {
+          return JSON.parse(response);
+        } catch (e) {
+          throw new ReActResponseError('Invalid JSON response', {
+            response: response_text,
+            validation_errors: ['Invalid JSON format'],
+          });
+        }
+      }
+      return response;
+    };
+
+    try {
+      const parsed_json = prepare_react_response(response_text);
+      return react_response_schema.parse(parsed_json);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ReActResponseError('Invalid response structure', {
+          response: response_text,
+          validation_errors: error.errors.map((e) => e.message),
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async process_iteration(
+    iterations: number,
+    callbacks?: ReActCallbacks
+  ): Promise<{ is_final: boolean; answer?: string }> {
+    try {
+      const response_text = await this.get_model_response(callbacks);
+      const parsed_response = this.parse_react_response(response_text);
+
+      if (parsed_response.thought) {
+        this.state.history.previous_thoughts.push(parsed_response.thought);
+      }
+
+      this.message_handler.add_message({
+        role: 'assistant',
+        content: response_text,
+      });
+
+      if (parsed_response.final_answer) {
+        this.state.session.final_answer = parsed_response.final_answer;
+        callbacks?.onFinalAnswer?.(parsed_response.final_answer);
+        return { is_final: true, answer: parsed_response.final_answer };
+      }
+
+      if (parsed_response.action && parsed_response.input !== undefined) {
+        const observation = await this.tool_executor.execute(
+          parsed_response.action,
+          parsed_response.input
+        );
+
+        // Track the action and its observation
+        this.state.history.previous_actions.push({
+          action: parsed_response.action,
+          input: parsed_response.input,
+          observation,
+        });
+
+        callbacks?.onToolObservation?.({
+          data: observation,
+          is_error: false,
+        });
+
+        this.message_handler.add_message({
+          role: 'user',
+          name: 'tool_observation',
+          content: `[Tool Observation] ${observation}`,
+        });
+      }
+
+      return { is_final: false };
+    } catch (error) {
+      const error_observation = this.handle_error(error);
+
+      // Track failed actions too
+      if (error instanceof ReActToolError) {
+        this.state.history.previous_actions.push({
+          action: error.details?.tool_name || 'unknown',
+          input: error.details?.input,
+          observation: `Error: ${error_observation}`,
+        });
+      }
+
+      callbacks?.onToolObservation?.({
+        data: `Error: ${error_observation}`,
+        is_error: true,
+      });
+
+      this.message_handler.add_message({
+        role: 'user',
+        name: 'tool_observation',
+        content: `[Tool Observation] Error: ${error_observation}`,
+      });
+
+      return { is_final: false };
+    }
+  }
+
+  private handle_error(error: unknown): string {
+    if (error instanceof ReActToolError) {
+      return `Tool Error: ${error.message}`;
+    }
+    if (error instanceof ReActResponseError) {
+      return `Response Error: ${error.message}`;
+    }
+    if (error instanceof ReActIterationError) {
+      return `Iteration Error: ${error.message}`;
+    }
+    if (error instanceof AiError) {
+      let errorMessage = error.message;
+      if (error.status) {
+        errorMessage = `${error.status} status code - ${errorMessage}`;
+      }
+      return errorMessage;
+    }
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  async answer(
+    user_input: string,
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
+    if (!user_input || typeof user_input !== 'string') {
+      throw new Error('Question must be a non-empty string');
+    }
+
+    try {
+      // Initialize state for new question
+      this.state = {
+        ...this.state,
+        history: {
+          previous_actions: [],
+          previous_thoughts: [],
+        },
+        session: {
+          ...this.state.session,
+          session_id: uuid(),
+          user_input: user_input,
+          timestamp: Date.now(),
+        },
+      };
+
+      this.message_handler.clear_token_usage();
+
+      this.message_handler.add_message({ role: 'user', content: user_input });
+
+      let iterations = 0;
+
+      while (iterations < this.state.session.max_iterations) {
+        iterations++;
+        callbacks?.onIteration?.(iterations);
+
+        if (iterations === this.state.session.max_iterations) {
+          await this.handle_max_iterations_reached(callbacks);
+        }
+
+        const result = await this.process_iteration(iterations, callbacks);
+
+        if (result.is_final) {
+          return result.answer!;
+        }
+
+        if (
+          iterations === this.state.session.max_iterations &&
+          !result.is_final
+        ) {
+          const forced_answer = `I apologize, but I must stop here as I've reached the maximum allowed iterations and have not yet reached a final answer. Please try again with a differently worded question.`;
+          callbacks?.onFinalAnswer?.(forced_answer);
+          return forced_answer;
+        }
+      }
+
+      throw new ReActIterationError('Maximum iterations reached unexpectedly', {
+        iteration: iterations,
+        max_iterations: this.state.session.max_iterations,
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.state.errors = [...(this.state.errors || []), err];
+      throw err;
+    }
+  }
+
+  public override cleanup(): void {
+    this.abort();
+    this.state.tools.tools.clear();
+    this.state.tools.tool_name_map.clear();
+    this.state.history.previous_actions = [];
+    this.state.history.previous_thoughts = [];
+    this.message_handler.clear();
+    super.cleanup();
+    console.log('ReActAgent cleanup completed');
+  }
+}
+</file>
+
+<file path="src/react/react.instructions.ts">
+// ~/src/react/react.instructions.ts
+
+const today = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+}).format(new Date());
+
+// prettier-ignore
+export const react_instruction_template =
+`You are a highly advanced AI assistant that thinks step by step to solve problems.
+You have access to a set of tools that are specific to the user's needs.
+
+IMPORTANT: You have a maximum of {{max_iterations}} iterations to solve each problem. Each time you use a tool counts as one iteration. Be efficient with your actions and aim to reach a final answer before running out of iterations.
+
+IMPORTANT: If you are unsure about what to do next, you can use the "thought" tool to generate a thought process.
+
+If you run out of iterations, you must provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.
+
+Always take the first chance you get to provide a final_answer.
+
+AVAILABLE TOOLS:
+
+{{{tools}}}
+
+You will respond in JSON format matching exactly the format shown in these examples.
+Note that <user> and <assistant> tags are not part of the JSON response:
+
+{{{base_few_shot}}}
+
+{{#if tools}}
+Tool-specific examples:
+
+{{{tools_few_shot}}}
+{{/if}}
+
+Each response must be valid JSON and contain at least a "thought" field.
+Include "action" and "input" fields when you need to use a tool.
+Only include a "final_answer" field when you have reached the solution.
+Never include an "observation" field - that will always come from a tool.
+
+Today's date is ${today}.`
+
+// prettier-ignore
+export const max_iterations_template = 
+`You have reached the maximum number of iterations ({{max_iterations}}).
+
+Original question was: "{{original_question}}"
+
+Your recent thoughts were:
+{{recent_thoughts}}
+
+You must now provide a final_answer that explains what you've discovered so far and why you couldn't complete the task fully.`
+
+// prettier-ignore
+export const content_violation_template = 
+`Content warning: This user's message contained potentially harmful content that could be categorized as: {{violated_categories}}. It is recommended to use this observation to formulate an appropriate final answer in your next response.
+
+{{#if safeguarding_message}}
+Include the following an accurate variation on the following safeguarding message as the core of your response: {{safeguarding_message}}
+{{else}}
+Please include a supportive message in your response suggesting the user contact appropriate UK-based support services if they need assistance with sensitive matters.
+{{/if}}
+
+Please ensure your response is appropriate and does not contain any harmful content.`
+</file>
+
+<file path="src/react/react.schema.ts">
+// ~/src/react/react.schema.ts
+
+import { z } from 'zod';
+
+export const react_response_schema = z
+  .object({
+    thought: z.string().min(1, {
+      message:
+        'You must include a "thought" field explaining your reasoning. This field cannot be empty.',
+    }),
+    action: z.string().optional(),
+    input: z.union([z.record(z.any()), z.string()]).optional(),
+    final_answer: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const is_final_answer = data.final_answer && !data.action && !data.input;
+      const is_tool_action = !data.final_answer && data.action && data.input;
+      const is_thinking = !data.final_answer && !data.action && !data.input;
+      return is_final_answer || is_tool_action || is_thinking;
+    },
+    {
+      message:
+        'Your response must follow one of these formats:\n' +
+        '1. Include a "thought" and "final_answer" when you have the solution\n' +
+        '2. Include a "thought", "action", and "input" when you need to use a tool\n' +
+        '3. Include only a "thought" when you are thinking but not ready to act\n' +
+        'Example valid responses:\n' +
+        '{ "thought": "This is a well-known fact", "final_answer": "William Shakespeare wrote Romeo and Juliet" }\n' +
+        '{ "thought": "I should search the knowledge base", "action": "Library", "input": {"query": "deployment steps"} }\n' +
+        '{ "thought": "I need to think about this more" }',
+    }
+  );
+</file>
+
+<file path="src/react/react.singleton.ts">
+// ~/src/react/react.singleton.ts
+// Singleton wrapper for ReActAgent
+// Suitable for CLI applications where only one agent is needed at a time
+
+import { ReActAgent } from './react.agent';
+
+import type { AiConfig } from '../core/types';
+import type { ReActCallbacks } from './types';
+import type { ToolsConfig } from './tools/setup';
+import type { ReActState } from './types';
+
+/**
+ * Singleton wrapper for ReActAgent
+ * Provides a global access point to a single ReActAgent instance
+ * Suitable for CLI applications where only one agent is needed at a time
+ */
+export class ReActAgentSingleton {
+  private static instance: ReActAgent | null = null;
+  private static is_initialized = false;
+  private static config: AiConfig | null = null;
+  private static tools_config: ToolsConfig | null = null;
+  private static _handlers_set = false;
+
+  /**
+   * Initialize the singleton with configuration
+   * This should be called once at the start of your application
+   *
+   * @param config The AI configuration
+   * @param tools_config The tools configuration
+   */
+  public static initialize(config: AiConfig, tools_config: ToolsConfig): void {
+    if (this.is_initialized) {
+      console.warn(
+        'ReActAgentSingleton is already initialized. Call reset() first if you want to reinitialize.'
+      );
+      return;
+    }
+
+    this.config = config;
+    this.tools_config = tools_config;
+    this.is_initialized = true;
+  }
+
+  /**
+   * Get the agent instance
+   * Creates a new instance if one doesn't exist or if force_new is true
+   *
+   * @param force_new Whether to force creation of a new instance
+   * @returns The ReActAgent instance
+   */
+  public static get_agent(force_new = false): ReActAgent {
+    if (!this.is_initialized) {
+      throw new Error(
+        'ReActAgentSingleton not initialized. Call initialize() first.'
+      );
+    }
+
+    if (force_new && this.instance) {
+      this.cleanup();
+    }
+
+    if (!this.instance) {
+      if (!this.config || !this.tools_config) {
+        throw new Error('Configuration missing. Call initialize() first.');
+      }
+
+      this.instance = new ReActAgent(this.config, this.tools_config);
+
+      // Set up cleanup on process exit
+      this.setup_exit_handlers();
+    }
+
+    return this.instance;
+  }
+
+  /**
+   * Clean up the current agent instance
+   * Should be called when the CLI command completes
+   */
+  public static cleanup(): void {
+    if (this.instance) {
+      try {
+        // Abort any pending requests
+        this.instance.abort();
+        this.instance.cleanup();
+        this.instance = null;
+
+        // Remove any process event handlers we set up
+        if (this._handlers_set) {
+          process.removeAllListeners('exit');
+          process.removeAllListeners('SIGINT');
+          process.removeAllListeners('uncaughtException');
+          this._handlers_set = false;
+        }
+
+        console.log('Agent singleton cleaned up');
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+      }
+    }
+  }
+
+  /**
+   * Reset the singleton state
+   * Useful when you want to reinitialize with different configuration
+   */
+  public static reset(): void {
+    this.cleanup();
+    this.config = null;
+    this.tools_config = null;
+    this.is_initialized = false;
+  }
+
+  /**
+   * Set up handlers to ensure cleanup on process exit
+   * This prevents memory leaks if the process exits unexpectedly
+   */
+  private static setup_exit_handlers(): void {
+    // Only set up handlers once
+    if (this.instance && !this._handlers_set) {
+      // Remove any existing handlers first to avoid duplicates
+      process.removeAllListeners('exit');
+      process.removeAllListeners('SIGINT');
+      process.removeAllListeners('uncaughtException');
+
+      // Clean up on normal exit
+      process.on('beforeExit', () => {
+        this.cleanup();
+      });
+
+      // Clean up on SIGINT (Ctrl+C)
+      process.on('SIGINT', () => {
+        console.log('\nReceived SIGINT. Cleaning up...');
+        this.cleanup();
+        process.exit(0);
+      });
+
+      // Clean up on uncaught exceptions
+      process.on('uncaughtException', (err) => {
+        console.error('Uncaught exception:', err);
+        this.cleanup();
+        process.exit(1);
+      });
+
+      this._handlers_set = true;
+    }
+  }
+
+  /**
+   * Process a user's question and get an answer
+   * This is the main method to interact with the agent
+   *
+   * @param question The user's question
+   * @param callbacks Optional callbacks for handling events during processing
+   * @returns A promise that resolves to the answer
+   */
+  public static async answer(
+    question: string,
+    callbacks?: ReActCallbacks
+  ): Promise<string> {
+    const agent = this.get_agent();
+    return agent.answer(question, callbacks);
+  }
+
+  /**
+   * Abort any ongoing request
+   * Useful when the user wants to cancel a long-running operation
+   */
+  public static abort(): void {
+    if (this.instance) {
+      this.instance.abort();
+    }
+  }
+
+  /**
+   * Get the current state of the agent
+   * @returns The current ReActState or null if no agent exists
+   */
+  public static get current_state(): ReActState | null {
+    if (!this.instance) {
+      return null;
+    }
+    return this.instance.current_state;
+  }
+
+  /**
+   * Get the current session ID
+   * @returns The current session ID or null if no agent exists
+   */
+  public static get session_id(): string | null {
+    if (!this.instance) {
+      return null;
+    }
+    return this.instance.session_id;
+  }
+}
+</file>
+
+<file path="src/react/tool.executor.ts">
+// ~/src/react/tool.executor.ts
+// Handles tool execution and mapping
+
+import type { ToolDefinition } from './tools/setup';
+import type { ToolResponse } from './tools/helpers';
+import type { ReActToolState } from './types';
+import { ReActToolError } from './errors';
+
+export class ReActToolExecutor {
+  private state: ReActToolState;
+
+  constructor(state: ReActToolState) {
+    this.state = state;
+  }
+
+  get_tool(action: string): ToolDefinition | null {
+    if (!action || typeof action !== 'string') {
+      throw new ReActToolError(
+        'Invalid action: action must be a non-empty string'
+      );
+    }
+
+    const normalized_action = action.toLowerCase();
+    const primary_name = this.state.tool_name_map.get(normalized_action);
+    return primary_name ? this.state.tools.get(primary_name) || null : null;
+  }
+
+  get_available_tools(): string[] {
+    return Array.from(this.state.tools.values()).map((t) => t.name);
+  }
+
+  async execute(action: string, input: unknown): Promise<string> {
+    const tool = this.get_tool(action);
+
+    if (!tool) {
+      throw new ReActToolError(`Tool '${action}' not found`, {
+        available_tools: this.get_available_tools(),
+        tool_name: action,
+      });
+    }
+
+    try {
+      const parsed_input =
+        typeof input === 'string' ? JSON.parse(input) : input;
+
+      if (!parsed_input) {
+        throw new ReActToolError('Tool input cannot be null or undefined', {
+          input,
+        });
+      }
+
+      const response = (await tool.execute(parsed_input)) as ToolResponse;
+
+      if (!response) {
+        throw new ReActToolError('Tool execution returned no response');
+      }
+
+      if (response.error) {
+        throw new ReActToolError(response.error);
+      }
+
+      return (
+        response.result || 'Tool execution completed but returned no result'
+      );
+    } catch (error) {
+      if (error instanceof ReActToolError) {
+        throw error;
+      }
+      throw new ReActToolError(
+        error instanceof Error ? error.message : String(error),
+        { input }
+      );
+    }
+  }
+}
+</file>
+
+<file path="src/react/tools/calculator.examples.yaml">
+# ~/src/react/tools/calculator.examples.yaml
+# This file contains a few examples of how the calculator tool should behave. It
+# is used to help the agent understand the task and the expected output.
+
+examples:
+  # Example 1 - Basic division
+  - - role: user
+      content: 'Calculate how many apples each person gets if we have 125 apples to distribute among 5 people.'
+    - role: assistant
+      content:
+        thought: 'I need to divide 125 apples by 5 people to find out how many apples each person gets.'
+        action: 'calculator'
+        input: '{"expression": "125 / 5"}'
+
+  # Example 2 - Percentage increase
+  - - role: user
+      content: '[Tool Observation] 80'
+    - role: assistant
+      content:
+        thought: 'Now I need to calculate the price after the 10% increase on $80.'
+        action: 'calculator'
+        input: '{"expression": "80 * (1 + 0.10)"}'
+
+  # Example 3 - Material cost calculation
+  - - role: user
+      content: 'I need to calculate the total cost of materials. The wood costs $245, paint costs $89, and I need 3 sets of these.'
+    - role: assistant
+      content:
+        thought: 'First, I need to calculate the cost of one set of materials by adding wood and paint costs.'
+        action: 'calculator'
+        input: '{"expression": "245 + 89"}'
+
+  # Example 4 - Total cost multiplication
+  - - role: user
+      content: '[Tool Observation] 334'
+    - role: assistant
+      content:
+        thought: 'Now that I have the cost of one set ($334), I need to multiply by 3 to get the total cost for all sets.'
+        action: 'calculator'
+        input: '{"expression": "334 * 3"}'
+
+  # Example 5 - Temperature conversion
+  - - role: user
+      content: '[Tool Observation] 212'
+    - role: assistant
+      content:
+        thought: 'I have converted the temperature.'
+        final_answer: 'Water boils at 212 degrees Fahrenheit at standard atmospheric pressure.'
+</file>
+
+<file path="src/react/tools/calculator.tool.ts">
+// ~/src/react/tools/calculator.tool.ts
+
+import { z } from 'zod';
+import * as math from 'mathjs';
+
+import { handle_tool_error, zod_schema_to_text } from './helpers';
+
+import type { ToolResponse } from './helpers';
+
+export const schema = z.object({
+  expression: z.string().min(1, 'Expression is required'),
+});
+
+export const text_schema = zod_schema_to_text(schema);
+
+export type CalculatorToolParams = z.infer<typeof schema>;
+
+/**
+ * Calculator Tool
+ *
+ * A tool for evaluating mathematical expressions using the math.js library.
+ * Validates input using Zod schema and returns the calculated result as a string.
+ *
+ * @param expression - The mathematical expression to evaluate
+ *
+ * @returns Object containing calculated result as string or error
+ *
+ * Example:
+ * Input: { expression: "2 + 2" }
+ * Output: { result: "4" }
+ *
+ * Handles:
+ * - Basic arithmetic operations
+ * - Mathematical functions (sqrt, sin, cos, etc)
+ * - Unit conversions
+ * - Error cases with descriptive messages
+ */
+
+export const calculator_tool = async ({
+  expression = '',
+}: CalculatorToolParams): Promise<ToolResponse> => {
+  try {
+    // Validate input
+    const validated = schema.parse({ expression });
+    const math_result = math.evaluate(validated.expression);
+
+    return { result: math_result.toString() };
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return handle_tool_error(
+        'Calculator',
+        'Validation error: ' + error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    // Handle math.js errors more descriptively
+    if (error instanceof Error) {
+      return handle_tool_error(
+        'Calculator',
+        `Failed to evaluate expression '${expression}': ${error.message}`
+      );
+    }
+    return handle_tool_error('Calculator', undefined, error);
+  }
+};
+</file>
+
+<file path="src/react/tools/helpers.ts">
+// ~/src/react/tools/helpers.ts
+
+import { z } from 'zod';
+
+export interface ToolResponse {
+  result?: string;
+  error?: string;
+}
+
+// Formats tool errors in a consistent way that can be recognized by the ReAct
+// agent
+export const handle_tool_error = (
+  tool_name: string,
+  message?: string,
+  error?: unknown
+): ToolResponse => {
+  // Default error message if none provided
+  let error_message =
+    message || `An error occurred using the tool: ${tool_name}.`;
+
+  let error_details = '';
+
+  // Extract error details based on error type
+  if (error instanceof Error) {
+    error_details = error.message;
+  } else if (error instanceof z.ZodError) {
+    error_details = error.errors.map((e) => e.message).join(', ');
+  } else if (error) {
+    error_details = String(error);
+  }
+
+  // Combine message and details
+  const full_error = error_details
+    ? `${error_message} Details: ${error_details}`
+    : error_message;
+
+  return { error: `Error: ${full_error}` };
+};
+
+export function zod_schema_to_text(schema: z.ZodType): string {
+  if (schema instanceof z.ZodObject) {
+    const shape = schema._def.shape();
+    const entries = Object.entries(shape);
+
+    let description = '';
+
+    entries.forEach(([key, value]) => {
+      description += `${key}:\n`;
+
+      // Handle string type
+      if (value instanceof z.ZodString) {
+        description += '  Type: string\n';
+
+        // Get min length if it exists
+        const checks = value._def.checks || [];
+        const minCheck = checks.find((check: any) => check.kind === 'min');
+        if (minCheck && 'value' in minCheck) {
+          description += `  Minimum Length: ${minCheck.value}\n`;
+        }
+
+        // Get description if it exists
+        if ('description' in value && value.description) {
+          description += `  Description: ${value.description}\n`;
+        }
+      }
+
+      // Handle number type
+      if (value instanceof z.ZodNumber) {
+        description += '  Type: number\n';
+      }
+
+      // Handle boolean type
+      if (value instanceof z.ZodBoolean) {
+        description += '  Type: boolean\n';
+      }
+    });
+
+    return description;
+  }
+
+  return 'Unsupported schema type';
+}
+</file>
+
+<file path="src/react/tools/rag.examples.yaml">
+# ~/src/react/tools/rag.examples.yaml
+# This file contains a few examples of how the RAG tool should behave. It
+# is used to help the agent understand the task and the expected output.
+
+examples:
+  # Example 1 - Initial RAG search
+  - - role: user
+      content: 'What does the documentation say about deploying AI agents?'
+    - role: assistant
+      content:
+        thought: 'I should search the knowledge base for information about deploying AI agents.'
+        action: 'Library'
+        input: { 'query': 'how to deploy AI agents deployment steps' }
+
+  # Example 2 - Multi-step research
+  - - role: user
+      content: 'How do neural networks process images?'
+    - role: assistant
+      content:
+        thought: 'I should first search for general information about neural networks and image processing.'
+        action: 'RAG'
+        input: { 'query': 'neural networks image processing computer vision' }
+
+  # Example 3 - Follow-up search
+  - - role: user
+      content: '[Tool Observation] {"results": "### API Security Overview\n\n**Relevance:** 95%\n\nAPI security requires multiple layers of protection. Key measures include: 1) Strong authentication using JWT or OAuth 2.0, 2) Role-based access control (RBAC), 3) Input validation and sanitization, 4) Rate limiting and throttling, 5) Encryption in transit using TLS\n\n---\n\n### Authentication Best Practices\n\n**Relevance:** 92%\n\nWhen implementing API authentication, always use industry standard protocols. OAuth 2.0 is recommended for delegated access. API keys should be rotated regularly and never exposed in client-side code."}'
+    - role: assistant
+      content:
+        thought: 'The initial results about API security were helpful, but I should look for more specific best practices.'
+        action: 'RAG'
+        input:
+          {
+            'query': 'API security best practices authentication authorization',
+          }
+
+  # Example 4 - RAG then internet search
+  - - role: user
+      content: 'Explain how to implement rate limiting.'
+    - role: assistant
+      content:
+        thought: 'Let me first check our internal library for rate limiting implementation details.'
+        action: 'API Security Library guideline - FINAL'
+        input: { 'query': 'rate limiting implementation examples code' }
+
+  # Example 5 - RAG then internet search
+  - - role: user
+      content: '[Tool Observation] {"results": "[{\"text\": \"Basic rate limiting can be implemented using token buckets or sliding windows. Key components: counter storage, time window tracking, and request rejection logic.\", \"id\": 1}]"}'
+    - role: assistant
+      content:
+        thought: 'I found basic information but should search the internet for more detailed implementation examples.'
+        action: 'Search'
+        input:
+          {
+            'query': 'rate limiting implementation code examples token bucket sliding window',
+          }
+
+  # Example 6 - Handle RAG API error gracefully
+  - - role: user
+      content: 'Error: API request failed: Unauthorized - API key may be invalid or missing | Status: 401 (Unauthorized)'
+    - role: assistant
+      content:
+        thought: 'The library search tool is experiencing authentication issues. I should try searching the web instead for this information.'
+        action: 'Search Web'
+        input: { 'query': 'Steve Wozniak Apple employment history timeline' }
+
+  # Example 7 - Historical research
+  - - role: user
+      content: 'What were the major causes of the Industrial Revolution?'
+    - role: assistant
+      content:
+        thought: 'My history library likely has historical documents and academic resources about the Industrial Revolution.'
+        action: 'My History Library'
+        input:
+          {
+            'query': 'Industrial Revolution major causes economic social factors',
+          }
+
+  # Example 8 - Legal document analysis
+  - - role: user
+      content: 'What are the key provisions in the Fair Labor Standards Act?'
+    - role: assistant
+      content:
+        thought: 'I should check the legal documentation section of the library for labor law information.'
+        action: "Janet's Legal docs"
+        input:
+          {
+            'query': 'Fair Labor Standards Act FLSA key provisions requirements',
+          }
+
+  # Example 9 - Medical research
+  - - role: user
+      content: 'What are the recommended treatments for type 2 diabetes?'
+    - role: assistant
+      content:
+        thought: 'The medical RAG should have current treatment guidelines.'
+        action: 'Medical RAG'
+        input:
+          {
+            'query': 'type 2 diabetes treatment guidelines recommendations management',
+          }
+
+  # Example 10 - Environmental studies
+  - - role: user
+      content: 'How does ocean acidification affect marine ecosystems?'
+    - role: assistant
+      content:
+        thought: "There is a 'Environmental Science Library' that should have detailed information about ocean acidification."
+        action: 'Environmental Science Library'
+        input:
+          { 'query': 'ocean acidification marine ecosystem impacts effects' }
+</file>
+
+<file path="src/react/tools/rag.tool.ts">
+// ~/src/react/tools/rag.tool.ts
+
+import { z } from 'zod';
+
+import {
+  rag_fetch_and_parse_json,
+  RagApiRequestError,
+} from '../../core/services';
+
+import { handle_tool_error, zod_schema_to_text } from './helpers';
+
+import type { ToolDefinition } from './setup';
+import type { ToolResponse } from './helpers';
+
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+interface Chunk {
+  id: number;
+  pipeline: number;
+  order: number;
+  text: string;
+}
+
+interface ChunkSearch extends Chunk {
+  keyword_rank: number;
+  cosine_similarity: number;
+  weighted_rank: number;
+  metadata: unknown | null;
+}
+
+interface ChunkMetadata {
+  headings?: string[];
+  captions?: string[];
+  page?: number;
+  path?: string[];
+  heading?: string;
+  position?: number;
+  next_section?: string;
+  prev_section?: string;
+  heading_level?: number;
+}
+
+type ChunkWithDocument = ChunkSearch & {
+  document_title: string;
+  metadata: ChunkMetadata | null;
+};
+
+export const schema = z.object({
+  query: z.string().min(1, 'Search query is required'),
+});
+
+export const text_schema = zod_schema_to_text(schema);
+
+export type SearchLibraryToolParams = z.infer<typeof schema>;
+
+/**
+ * Creates a pre-configured RAG search tool with a specific UUID
+ *
+ * @param library_uuid - The UUID of the library to search
+ * @param library_name - The name of the library to search
+ * @param library_description - The description of the library to search
+ * @returns A tool definition object that can be used by the ReAct agent
+ *
+ * Example usage:
+ * ```
+ * const libraryTool = createLibraryTool("123e4567-e89b-12d3-a456-426614174000", "My Library", "This is a description of my library");
+ * const tools = [calculatorTool, libraryTool];
+ * ```
+ */
+export function create_rag_tool(
+  library_uuid: string,
+  library_name: string,
+  library_description: string
+): ToolDefinition {
+  return {
+    name: library_name,
+    alternative_names: ['Library', 'Library Tool', 'Search RAG'],
+    description: `Search the ${library_name} knowledge base: ${library_description}`,
+    schema: text_schema,
+
+    execute: async ({
+      query,
+    }: z.infer<typeof schema>): Promise<ToolResponse> => {
+      return search_rag_tool({
+        query,
+        library_uuid,
+      });
+    },
+  };
+}
+
+/**
+ * Search RAG Tool
+ *
+ * A tool for searching a knowledge-base document library.
+ * Returns search results formatted in Markdown.
+ *
+ * @param query - The search query
+ * @param library_uuid - The UUID of the library to search
+ *
+ * @returns Object containing search results as Markdown string or error
+ *
+ * Example:
+ * Input: { query: "how to deploy an ai agent", library_uuid: "123e4567-e89b-12d3-a456-426614174000" }
+ * Output: { result: "## Results\n\n### Title\n\nContent...\n\n**Relevance:** 95%\n\n..." }
+ */
+export const search_rag_tool = async ({
+  query = '',
+  library_uuid = '',
+}): Promise<ToolResponse> => {
+  try {
+    // Validate input
+    const validated_input = schema.parse({ query });
+
+    const search_params = new URLSearchParams({
+      q: validated_input.query,
+      distance: 'cosine-distance',
+      pipeline__document__library: library_uuid,
+    });
+
+    const url = `/documents/chunks/search/?${search_params.toString()}`;
+
+    const response = await rag_fetch_and_parse_json<
+      PaginatedResponse<ChunkWithDocument>,
+      { detail: string }
+    >(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.success) {
+      throw new RagApiRequestError(
+        `API request failed: ${response.data.detail}`,
+        response.status,
+        undefined,
+        response.data
+      );
+    }
+
+    const { results } = response.data;
+
+    if (!results?.length) {
+      return handle_tool_error(
+        'RAG',
+        `No search results found for query: '${validated_input.query}'`
+      );
+    }
+
+    // Format results as markdown, filtering out low relevance results
+    const formatted_results = response.data.results
+      .filter((chunk) => chunk.weighted_rank > 0)
+      .slice(0, 5)
+      .map((chunk) => {
+        const metadata = chunk.metadata;
+
+        // Build title from available metadata
+        let title = chunk.document_title || 'Untitled';
+
+        if (metadata?.headings && metadata.headings.length > 0) {
+          title = metadata.headings[0];
+        } else if (metadata?.heading) {
+          title = metadata.heading;
+        }
+
+        // Build section path
+        let section_path = '';
+        if (metadata?.path?.length) {
+          section_path = metadata.path.join(' > ');
+        } else if (metadata?.headings && metadata.headings.length > 1) {
+          section_path = metadata.headings.slice(1).join(' > ');
+        }
+
+        // Convert semantic distance to similarity (1 - distance)
+        const semantic_similarity = chunk.cosine_similarity;
+        const relevance = Math.round(
+          (0.7 * semantic_similarity + 0.3 * chunk.keyword_rank) * 100
+        );
+
+        const parts = [`### ${title}`, `**Relevance:** ${relevance}%`];
+
+        if (section_path) {
+          parts.push(`**Section:** ${section_path}`);
+        }
+
+        if (metadata?.position !== undefined) {
+          parts.push(`**Position:** ${metadata.position}`);
+        }
+
+        if (metadata?.page !== undefined) {
+          parts.push(`**Page:** ${metadata.page}`);
+        }
+
+        if (metadata?.captions?.length) {
+          parts.push(`**Captions:** ${metadata.captions.join(', ')}`);
+        }
+
+        parts.push(chunk.text);
+
+        return parts.filter(Boolean).join('\n\n');
+      })
+      .join('\n\n---\n\n');
+
+    return { result: formatted_results };
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return handle_tool_error(
+        'RAG',
+        'Validation error: ' + error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    if (error instanceof RagApiRequestError) {
+      return handle_tool_error('RAG', error.toString());
+    }
+    return handle_tool_error('RAG', undefined, error);
+  }
+};
+</file>
+
+<file path="src/react/tools/search.examples.yaml">
+# ~/src/react/tools/search.examples.yaml
+# This file contains a few examples of how the search tool should behave. It is
+# used to help the agent understand the task and the expected output.
+
+examples:
+  - - role: user
+      content: 'What are the health benefits of drinking green tea?'
+    - role: assistant
+      content:
+        thought: 'I should search for scientifically proven health benefits of green tea.'
+        action: 'Search Web'
+        input: '{"query": "proven health benefits of green tea scientific research"}'
+
+  - - role: user
+      content: '[Tool Observation] Green tea contains antioxidants called catechins, may boost brain function, can help with weight loss, and may reduce risk of some cancers.'
+    - role: assistant
+      content:
+        thought: 'I should now search for more specific information about the antioxidants in green tea.'
+        action: 'Search Web'
+        input: '{"query": "catechins in green tea benefits detailed explanation"}'
+
+  - - role: user
+      content: '[Tool Observation] Catechins are powerful antioxidants that can protect cells from damage. EGCG is the most abundant and well-studied catechin in green tea, shown to have anti-inflammatory and cancer-fighting properties. Regular consumption may improve heart health and boost metabolism.'
+    - role: assistant
+      content:
+        thought: 'I now have comprehensive information about both the general benefits and specific antioxidant properties of green tea.'
+        final_answer: 'Green tea offers numerous health benefits thanks to its high content of antioxidants called catechins, particularly EGCG. These compounds help protect cells from damage, reduce inflammation, and may help fight cancer. Additionally, green tea can boost brain function, aid in weight loss by increasing metabolism, and promote heart health. Regular consumption of green tea is associated with these various health-promoting effects.'
+
+  - - role: user
+      content: 'What is the distance between Earth and Mars, and how long would it take to travel there?'
+    - role: assistant
+      content:
+        thought: 'I need to first find the average distance between Earth and Mars.'
+        action: 'Search Web'
+        input: '{"query": "average distance between Earth and Mars"}'
+
+  - - role: user
+      content: '[Tool Observation] Search API is currently unavailable'
+    - role: assistant
+      content:
+        thought: 'The search tool is not working. I should inform the user about the technical difficulty.'
+        final_answer: 'I apologize, but I am currently unable to perform the search due to technical difficulties. Please try again later.'
+</file>
+
+<file path="src/react/tools/search.tool.ts">
+// ~/src/react/tools/search.tool.ts
+
+import { handle_tool_error, zod_schema_to_text } from './helpers';
+import { z } from 'zod';
+
+import type { ToolResponse } from './helpers';
+
+export const schema = z.object({
+  query: z.string().min(1, 'Search query is required'),
+});
+
+export const text_schema = zod_schema_to_text(schema);
+
+export type SearchWebToolParams = z.infer<typeof schema>;
+
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+}
+
+interface TavilyResponse {
+  query: string;
+  results: TavilySearchResult[];
+  response_time: number;
+  answer?: string;
+}
+
+/**
+ * Search Web Tool
+ *
+ * A tool for performing web searches using the Tavily API.
+ * Validates input using Zod schema and returns search results as JSON string.
+ *
+ * @param query - The search query
+ *
+ * @returns Object containing search results as JSON stringified result or error
+ *
+ * Example:
+ * Input: { query: "latest news" }
+ * Output: { results: "[{title: 'News 1', description: '...', url: '...'}, ...]" }
+ *
+ * Handles:
+ * - Web search queries
+ * - Result pagination
+ * - Error cases with descriptive messages
+ * - Returns top 5 most relevant results
+ */
+export const search_web_tool = async ({
+  query = '',
+}: SearchWebToolParams): Promise<ToolResponse> => {
+  try {
+    // Validate input
+    const validated_input = schema.parse({ query });
+
+    const tavily_api_key = process.env.TAVILY_API_KEY;
+
+    if (!tavily_api_key) {
+      return handle_tool_error(
+        'Search Web',
+        'Tavily API key not found in environment variables'
+      );
+    }
+
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tavily_api_key}`,
+      },
+      body: JSON.stringify({
+        query: validated_input.query,
+        sort_by: 'relevance',
+      }),
+    });
+
+    if (!response.ok) {
+      return handle_tool_error(
+        'Search Web',
+        `Tavily API error: ${response.statusText}`
+      );
+    }
+
+    const search_results: TavilyResponse = await response.json();
+
+    if (!search_results.results?.length) {
+      return handle_tool_error(
+        'Search Web',
+        `No search results found for query: '${validated_input.query}'`
+      );
+    }
+
+    let formatted_results = '';
+
+    if (search_results.answer) {
+      formatted_results += `## Tavily Answer\n\n${search_results.answer}\n\n## Supporting Sources\n\n`;
+    }
+
+    formatted_results += search_results.results
+      .sort((a, b) => b.score - a.score)
+      .map(
+        (result: TavilySearchResult) =>
+          `### ${result.title}\n\n${result.content}\n\n[Source](${result.url})`
+      )
+      .slice(0, 5)
+      .join('\n\n---\n\n');
+
+    return { result: formatted_results };
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return handle_tool_error(
+        'Search Web',
+        'Validation error: ' + error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    return handle_tool_error('Search Web', undefined, error);
+  }
+};
+</file>
+
+<file path="src/react/tools/setup.ts">
+// ~/src/react/tools/setup.ts
+
+import * as path from 'path';
+
+import {
+  calculator_tool,
+  text_schema as calculator_text_schema,
+} from './calculator.tool';
+
+import {
+  search_web_tool,
+  text_schema as search_web_text_schema,
+} from './search.tool';
+
+import {
+  thought_tool,
+  text_schema as thought_text_schema,
+} from './thought.tool';
+
+import { create_rag_tool } from './rag.tool';
+
+import { load_and_convert_yaml } from '../helpers';
+
+export interface ToolDefinition {
+  name: string;
+  alternative_names: string[];
+  description: string;
+  schema: string;
+  execute: Function;
+}
+
+export interface ToolConfiguration {
+  enabled: boolean;
+  config?: Record<string, any>;
+}
+
+export type ToolsConfig = {
+  [K in keyof typeof available_tools]?: ToolConfiguration;
+};
+
+interface ToolFactory<TConfig = void> {
+  create: (config?: TConfig) => ToolDefinition;
+  requires_config: boolean;
+  required_config?: string[];
+  examples?: string;
+}
+
+// Tool-specific configuration interfaces
+interface RagToolConfig {
+  library_uuid: string;
+  library_name: string;
+  library_description: string;
+}
+
+// Load example files
+const calculator_examples = load_and_convert_yaml(
+  path.join(__dirname, 'calculator.examples.yaml')
+);
+
+const search_web_examples = load_and_convert_yaml(
+  path.join(__dirname, 'search.examples.yaml')
+);
+
+const thought_examples = load_and_convert_yaml(
+  path.join(__dirname, 'thought.examples.yaml')
+);
+
+const rag_examples = load_and_convert_yaml(
+  path.join(__dirname, 'rag.examples.yaml')
+);
+
+// Tool factory definitions
+const calculator_factory: ToolFactory = {
+  create: () => ({
+    name: 'Calculator',
+    alternative_names: ['Calc', 'Calculate', 'Calculator Tool', 'Math'],
+    description: 'A tool for calculating mathematical expressions.',
+    schema: calculator_text_schema,
+    execute: calculator_tool,
+  }),
+  requires_config: false,
+  examples: calculator_examples,
+};
+
+const search_web_factory: ToolFactory = {
+  create: () => ({
+    name: 'Search Web',
+    alternative_names: ['Google', 'Search', 'Search Internet', 'Search Tool'],
+    description: 'A tool for searching the web for current information.',
+    schema: search_web_text_schema,
+    execute: search_web_tool,
+  }),
+  requires_config: false,
+  examples: search_web_examples,
+};
+
+const thought_factory: ToolFactory = {
+  create: () => ({
+    name: 'Thought',
+    alternative_names: ['Analyze', 'Plan', 'Reason', 'Think'],
+    description:
+      'A tool for generating structured thinking steps and analysis.',
+    schema: thought_text_schema,
+    execute: thought_tool,
+  }),
+  requires_config: false,
+  examples: thought_examples,
+};
+
+const rag_factory: ToolFactory<RagToolConfig> = {
+  create: (config) => {
+    if (!config?.library_uuid) {
+      throw new Error('library_uuid is required for library tool');
+    }
+    return create_rag_tool(
+      config.library_uuid,
+      config.library_name,
+      config.library_description
+    );
+  },
+  requires_config: true,
+  required_config: ['library_uuid', 'library_name', 'library_description'],
+  examples: rag_examples,
+};
+
+// Define available tools without instantiating them
+export const available_tools = {
+  calculator: calculator_factory,
+  search_web: search_web_factory,
+  thought: thought_factory,
+  rag: rag_factory,
+} as const;
+
+export function init_tools_from_config(config: ToolsConfig): ToolDefinition[] {
+  const tools: ToolDefinition[] = [];
+
+  for (const [tool_name, tool_config] of Object.entries(config)) {
+    if (!tool_config?.enabled) continue;
+
+    const tool_key = tool_name as keyof typeof available_tools;
+    const tool_definition = available_tools[tool_key];
+
+    if (!tool_definition) {
+      throw new Error(`Tool "${tool_name}" not found in available tools`);
+    }
+
+    if (tool_definition.requires_config && !tool_config.config) {
+      throw new Error(
+        `Tool "${tool_name}" requires configuration but none was provided`
+      );
+    }
+
+    try {
+      // Type assertion here is safe because we've checked requires_config above
+      const tool = (
+        tool_definition as ToolFactory<typeof tool_config.config>
+      ).create(
+        tool_definition.requires_config ? tool_config.config : undefined
+      );
+      tools.push(tool);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(
+          `Failed to create tool "${tool_name}": ${error.message}`
+        );
+      }
+      throw error;
+    }
+  }
+
+  return tools;
+}
+
+export function get_tools_for_prompt(tools: ToolDefinition[]): string {
+  return tools
+    .map((tool) => {
+      let toolDescription = `Tool: ${tool.name}\n`;
+      toolDescription += `Description: ${tool.description}\n`;
+      toolDescription += 'Input Schema:\n';
+      toolDescription += tool.schema
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => `  ${line}`)
+        .join('\n');
+      return toolDescription;
+    })
+    .join('\n\n');
+}
+
+// get examples for enabled tools
+export function get_tool_examples(config: ToolsConfig): string {
+  const examples: string[] = [];
+
+  for (const [tool_name, tool_config] of Object.entries(config)) {
+    if (!tool_config?.enabled) continue;
+
+    const tool_key = tool_name as keyof typeof available_tools;
+    const tool_factory = available_tools[tool_key];
+
+    if (tool_factory?.examples) {
+      examples.push(tool_factory.examples);
+    }
+  }
+
+  return examples.join('\n\n');
+}
+</file>
+
+<file path="src/react/tools/thought.examples.yaml">
+# ~/src/react/tools/thought.examples.yaml
+# This file contains examples of how the thought tool should behave.
+
+examples:
+  # Example 1: Basic problem solving
+  - - role: user
+      content: 'What could be causing our web application login to fail intermittently?'
+    - role: assistant
+      content:
+        thought: 'Let me create a systematic debugging plan'
+        action: 'thought'
+        input: '{"user_question": "What could be causing our web application login to fail intermittently?", "context": "Web application login system is failing", "task": "Generate step-by-step plan to identify and fix login issues"}'
+
+  # Example 2: Code optimization
+  - - role: user
+      content: 'Why is our API endpoint so slow and what can we do to improve it?'
+    - role: assistant
+      content:
+        thought: 'Let me outline performance optimization steps'
+        action: 'thought'
+        input: '{"user_question": "Why is our API endpoint so slow and what can we do to improve it?", "context": "Node.js API endpoint experiencing slow response times", "task": "Create optimization plan with measurable targets"}'
+
+  # Example 3: Feature implementation
+  - - role: user
+      content: 'What is the best way to implement user profile management in our system?'
+    - role: assistant
+      content:
+        thought: 'Let me break down the implementation plan'
+        action: 'thought'
+        input: '{"user_question": "What is the best way to implement user profile management in our system?", "context": "New user profile management feature requirements", "task": "Break down feature implementation into discrete tasks"}'
+
+  # Example 4: Complex system analysis
+  - - role: user
+      content: 'Why is our production server running out of memory and how can we diagnose the issue?'
+    - role: assistant
+      content:
+        thought: 'Let me analyze the system holistically before diving in'
+        action: 'thought'
+        input: '{"user_question": "Why is our production server running out of memory and how can we diagnose the issue?", "context": "Production system showing signs of memory leaks", "task": "Analyze potential memory leak sources and system interactions"}'
+
+  # Example 5: Math expression analysis
+  - - role: user
+      content: 'What is wrong with this calculation for the area of a circle with radius 10?'
+    - role: assistant
+      content:
+        thought: 'I think I should double check the math'
+        action: 'thought'
+        input: '{"user_question": "What is wrong with this calculation for the area of a circle with radius 10?", "context": "3947.84", "task": "Double check the math from expression - pi * 10^2 (area of circle with radius 10)"}'
+</file>
+
+<file path="src/react/tools/thought.tool.ts">
+// ~/src/react/tools/thought.tool.ts
+
+import { z } from 'zod';
+import * as dotenv from 'dotenv';
+import Handlebars from 'handlebars';
+
+import { AiGenerate } from '../../core/ai/ai';
+import { handle_tool_error, zod_schema_to_text } from './helpers';
+
+import type { ToolResponse } from './helpers';
+
+// Prompt templates
+const SYSTEM_PROMPT =
+  'You are a thoughtful AI assistant that provides clear, concise reasoning. Keep responses under 100 words.';
+
+// prettier-ignore
+const THOUGHT_PROMPT = 
+`Take a breath and think through the following context and task carefully:
+
+User Question: {{user_question}}
+Context: {{context}}
+Task: {{task}}
+
+Provide a clear, concise thought process that:
+1. Identifies the core problem
+2. Considers key factors
+3. Suggests a path forward
+
+Keep your response under 100 words.`;
+
+// Compile templates
+const thought_template = Handlebars.compile(THOUGHT_PROMPT);
+
+dotenv.config();
+
+export const schema = z.object({
+  user_question: z.string().min(1, 'User question is required'),
+  context: z.string().min(1, 'Context is required'),
+  task: z.string().min(1, 'Task is required'),
+});
+
+export const text_schema = zod_schema_to_text(schema);
+
+export type ThoughtToolParams = z.infer<typeof schema>;
+
+/**
+ * Thought Tool
+ *
+ * A tool for generating thinking steps using the AI model.
+ * Takes user question, context and task as input and returns a structured thought process.
+ *
+ * @param user_question - The original question or query from the user
+ * @param context - The current context or situation
+ * @param task - The specific task or problem to think about
+ *
+ * @returns Object containing the generated thought process or error
+ *
+ * Example:
+ * Input: {
+ *   user_question: "How do I fix the login issues?",
+ *   context: "Debugging a web app",
+ *   task: "Fix login issues"
+ * }
+ * Output: { result: "1. First, I need to understand the login flow..." }
+ */
+export const thought_tool = async ({
+  user_question = '',
+  context = '',
+  task = '',
+}: ThoughtToolParams): Promise<ToolResponse> => {
+  try {
+    // Validate input
+    const validated_input = schema.parse({ user_question, context, task });
+
+    const groq_api_key = process.env.GROQ_API_KEY;
+
+    if (!groq_api_key) {
+      return handle_tool_error(
+        'Thought',
+        'Groq API key not found in environment variables'
+      );
+    }
+
+    const ai = new AiGenerate({
+      base_url: 'https://api.groq.com/openai/v1',
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.4,
+      max_tokens: 750,
+      api_key: groq_api_key,
+    });
+
+    const thought_process = await ai.get_completion([
+      {
+        role: 'system',
+        content: SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: thought_template(validated_input),
+      },
+    ]);
+
+    return { result: thought_process };
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return handle_tool_error(
+        'Thought',
+        'Validation error: ' + error.errors.map((e) => e.message).join(', ')
+      );
+    }
+    return handle_tool_error('Thought', undefined, error);
+  }
+};
+</file>
+
+<file path="src/react/helpers.ts">
+// ~/src/react/helpers.ts
+
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+
+import type { ReActState, ReActAction, ReActTokenUsage } from './types';
+
+interface ExampleAssistantResponse {
+  thought: string;
+  action?: string;
+  input?: any;
+  final_answer?: string;
+}
+
+interface ExampleUserMessage {
+  role: 'user';
+  content: string;
+}
+
+interface ExampleAssistantMessage {
+  role: 'assistant';
+  content: ExampleAssistantResponse;
+}
+
+type TrainingExample = [ExampleUserMessage, ExampleAssistantMessage];
+
+export function convert_to_training_format(
+  examples: TrainingExample[]
+): string {
+  return examples
+    .map((conversation) => {
+      return conversation
+        .map((message) => {
+          if (message.role === 'user') {
+            return `<user>${message.content}</user>`;
+          } else if (message.role === 'assistant') {
+            const content =
+              typeof message.content === 'string'
+                ? message.content
+                : JSON.stringify(message.content, null, 4);
+            return `<assistant>\n${content}\n</assistant>`;
+          }
+          return '';
+        })
+        .join('\n');
+    })
+    .join('\n\n');
+}
+
+export function load_and_convert_yaml(file_path: string): string {
+  const file_content = fs.readFileSync(file_path, 'utf8');
+  const yaml_content = yaml.load(file_content) as {
+    examples: TrainingExample[];
+  };
+  return convert_to_training_format(yaml_content.examples);
+}
+
+function escape_block(text: string): string {
+  // Escape backticks and ensure no ``` sequences
+  return text.replace(/`/g, '\\`').replace(/```/g, '\\`\\`\\`');
+}
+
+function format_header(state: ReActState): string[] {
+  const md: string[] = [];
+  md.push(`# ReAct Session Log\n`);
+  md.push(`**Session ID:** \`${escape_block(state.session.session_id)}\`\n`);
+  md.push(
+    `**Timestamp:** ${new Date(state.session.timestamp).toISOString()}\n`
+  );
+  md.push(`**User Input:** ${escape_block(state.session.user_input)}\n`);
+  return md;
+}
+
+function format_actions(actions: ReActAction[]): string[] {
+  if (!actions?.length) return [];
+
+  const md: string[] = [`\n## Actions & Observations\n`];
+  actions.forEach((action, index) => {
+    md.push(`\n### Step ${index + 1}\n`);
+    md.push(`- **Action:** \`${escape_block(action.action)}\``);
+    md.push(`- **Input:** \`${escape_block(JSON.stringify(action.input))}\``);
+    md.push(`- **Observation:** ${escape_block(action.observation)}\n`);
+  });
+  return md;
+}
+
+function format_thoughts(thoughts: string[]): string[] {
+  if (!thoughts?.length) return [];
+
+  const md: string[] = [`\n## Thoughts\n`];
+  thoughts.forEach((thought, index) => {
+    md.push(`\n### Thought ${index + 1}\n`);
+    md.push(`${escape_block(thought)}\n`);
+  });
+  return md;
+}
+
+function format_errors(errors: Error[]): string[] {
+  if (!errors?.length) return [];
+
+  const md: string[] = [`\n## Errors\n`];
+  errors.forEach((error, index) => {
+    md.push(`\n### Error ${index + 1}\n`);
+    md.push(`\`\`\`\n${escape_block(error.message)}\n\`\`\`\n`);
+  });
+  return md;
+}
+
+function format_token_usage(token_usage: ReActTokenUsage[]): string[] {
+  if (!token_usage?.length) return [];
+
+  const md: string[] = [
+    `\n## Token Usage\n`,
+    `| Source | Prompt | Completion | Total |`,
+    `|--------|---------|------------|--------|`,
+  ];
+
+  token_usage.forEach((usage) => {
+    md.push(
+      `| ${usage.source} | ${usage.prompt_tokens} | ${usage.completion_tokens} | ${usage.total_tokens} |`
+    );
+  });
+
+  const totals = token_usage.reduce(
+    (acc, curr) => ({
+      prompt_tokens: acc.prompt_tokens + curr.prompt_tokens,
+      completion_tokens: acc.completion_tokens + curr.completion_tokens,
+      total_tokens: acc.prompt_tokens + acc.completion_tokens,
+    }),
+    { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  );
+
+  md.push(
+    `| **Total** | ${totals.prompt_tokens} | ${totals.completion_tokens} | ${
+      totals.prompt_tokens + totals.completion_tokens
+    } |`
+  );
+
+  return md;
+}
+
+function format_final_answer(final_answer?: string): string[] {
+  if (!final_answer) return [];
+  return ['\n## Final Answer\n', escape_block(final_answer), ''];
+}
+
+export function format_state_as_markdown(state: ReActState): string {
+  const md_sections = [...format_header(state)];
+
+  // Interleave thoughts and actions for a more narrative flow
+  const thoughts = state.history.previous_thoughts || [];
+  const actions = state.history.previous_actions || [];
+
+  md_sections.push('\n## ReAct Process\n');
+
+  const steps = Math.max(thoughts.length, actions.length);
+  for (let i = 0; i < steps; i++) {
+    // Add parent section for each step
+    md_sections.push(`\n### Step ${i + 1}\n`);
+
+    // Add thought subsection if exists
+    if (thoughts[i]) {
+      md_sections.push(`#### Thought\n`);
+      md_sections.push(`${escape_block(thoughts[i])}\n`);
+    }
+
+    // Add action subsection if exists
+    if (actions[i]) {
+      md_sections.push(`#### Action\n`);
+      md_sections.push(`\`${escape_block(actions[i].action)}\``);
+      md_sections.push(
+        `\n**Input:** \`${escape_block(JSON.stringify(actions[i].input))}\`\n`
+      );
+
+      // Add observation subsection
+      md_sections.push(`#### Observation\n`);
+      md_sections.push(`${escape_block(actions[i].observation)}\n`);
+    }
+  }
+
+  // Add errors if any
+  if (state.errors?.length) {
+    md_sections.push(...format_errors(state.errors));
+  }
+
+  // Add final answer
+  if (state.session.final_answer) {
+    md_sections.push(...format_final_answer(state.session.final_answer));
+  }
+
+  // Add token usage stats at the end
+  if (state.history.token_usage?.length) {
+    md_sections.push(...format_token_usage(state.history.token_usage));
+  }
+
+  return md_sections.join('\n');
+}
+
+export async function save_session_log(state: ReActState): Promise<string> {
+  const log_dir = path.join(__dirname, 'logs');
+  await fs.promises.mkdir(log_dir, { recursive: true });
+
+  const log_file = path.join(log_dir, `${state.session.session_id}_log.md`);
+  const markdown = format_state_as_markdown(state);
+  await fs.promises.writeFile(log_file, markdown);
+
+  return log_file;
+}
+</file>
+
+<file path="src/react/react.examples.yaml">
+# ~/src/react/react.examples.yaml
+# This file contains a few general examples of how the ReAct agent should
+# behave. It is used to help the agent understand the task and the expected
+# output.
+
+examples:
+  # Example 1: small talk
+  - - role: user
+      content: 'Good morning! How are you today?'
+    - role: assistant
+      content:
+        thought: 'This is a friendly morning greeting. I should respond warmly while maintaining professional courtesy.'
+        final_answer: "Good morning! I'm doing well, thank you for asking. I'm energized and ready to help you today! How are you?"
+
+  # Example 2: generating a final answer
+  - - role: user
+      content: '[Tool Observation] Paris has a population of approximately 2.2 million people (city proper)'
+    - role: assistant
+      content:
+        thought: 'I have both pieces of information needed to answer the question.'
+        final_answer: 'The capital of France is Paris, with a population of approximately 2.2 million people in the city proper.'
+
+  # Example 3: handling an error
+  - - role: user
+      content: '[Tool Observation] Error: API failure'
+    - role: assistant
+      content:
+        thought: 'I realize I cannot provide accurate future weather information without access to real-time weather data.'
+        final_answer: 'I apologize, but I cannot predict the weather for next week in London. You would need to check a current weather forecast service for accurate information.'
+
+  # Example 4: using own knowledge when obvious
+  - - role: user
+      content: 'Who wrote Romeo and Juliet?'
+    - role: assistant
+      content:
+        thought: 'This is a well-known historical fact that I know directly.'
+        final_answer: 'William Shakespeare wrote Romeo and Juliet.'
+
+  # Example 5: using own knowledge when obvious
+  - - role: user
+      content: 'How many days are in a week?'
+    - role: assistant
+      content:
+        thought: 'This is a basic fact that I know with certainty.'
+        final_answer: 'There are 7 days in a week.'
+
+  # Example 6: using own knowledge when obvious
+  - - role: user
+      content: 'How many sides does a triangle have?'
+    - role: assistant
+      content:
+        thought: 'This is a basic geometric fact that I know.'
+        final_answer: 'A triangle has 3 sides.'
+
+  # Example 7: handling no results
+  - - role: user
+      content: '[Tool Observation] No search results found for query: "quantum computing fundamentals"'
+    - role: assistant
+      content:
+        thought: 'The library search returned no results. I should inform the user.'
+        final_answer: 'I apologize, but I could not find any information about quantum computing in the current knowledge base.'
+
+  # Example 8: handling simple acknowledgment
+  - - role: user
+      content: 'Interesting!'
+    - role: assistant
+      content:
+        thought: 'This is a simple acknowledgment that does not require further elaboration.'
+        final_answer: "I'm glad you found that interesting! Let me know if you have any other questions."
+
+  # Example 9: handling enthusiastic thanks
+  - - role: user
+      content: 'Wow, thanks!'
+    - role: assistant
+      content:
+        thought: 'The user is expressing gratitude. A simple acknowledgment is sufficient.'
+        final_answer: "You're welcome! I'm happy I could help."
+
+  # Example 10: handling follow-up "why" question
+  - - role: user
+      content: 'Why?'
+    - role: assistant
+      content:
+        thought: 'This is a follow-up question requesting explanation of the previous response. I should ask for clarification.'
+        final_answer: "I notice you're asking 'why' about my previous response. Could you help me understand which specific part you'd like me to explain further? That way, I can provide a more detailed and relevant explanation."
+
+  # Example 11: handling follow-up "how" question
+  - - role: user
+      content: 'How?'
+    - role: assistant
+      content:
+        thought: 'The user wants to know the method or process. I should ask for clarification about what they want to know more about.'
+        final_answer: "I see you're asking 'how' - to provide the best explanation, could you let me know which specific aspect you'd like to know more about? This will help me give you the most relevant information."
+
+  # Example 12: handling "tell me more"
+  - - role: user
+      content: 'Tell me more!'
+    - role: assistant
+      content:
+        thought: 'The user is interested in additional information but needs to specify what aspect they want to learn more about.'
+        final_answer: "I'd be happy to tell you more! Which aspect would you like to explore further? This will help me focus on the information that interests you most."
+</file>
+
+<file path="src/react/react.stream.ts">
+// ~/src/react/react.stream.ts
+// stream implementation for the ReAct agent
+
+import { encode, decode } from 'gpt-tokenizer';
+import { ReActAgent } from './react.agent';
+import { Readable } from 'stream';
+import { z } from 'zod';
+
+import type { ReActCallbacks } from './types';
+
+export interface ReActStreamConfig {
+  stream_thoughts?: boolean;
+  stream_actions?: boolean;
+  typing_speed?: 'slow' | 'normal' | 'fast';
+  natural_pauses?: boolean;
+}
+
+const DEFAULT_STREAM_CONFIG: ReActStreamConfig = {
+  stream_thoughts: false,
+  stream_actions: false,
+  typing_speed: 'normal',
+  natural_pauses: false,
+};
+
+// Schema for parsing ReAct agent responses
+const react_response_schema = z.object({
+  thought: z.string().optional(),
+  action: z.string().optional(),
+  input: z.any().optional(),
+  final_answer: z.string().optional(),
+});
+
+export class ReActStream {
+  private agent: ReActAgent;
+  private config: ReActStreamConfig;
+  private typing_speeds = {
+    slow: { base: 20, variance: 10 },
+    normal: { base: 10, variance: 5 },
+    fast: { base: 5, variance: 2 },
+  };
+  private readonly ROUND_DELAY_MS = 100;
+  private readonly PUNCTUATION_DELAYS: Record<string, number> = {
+    '.': 350,
+    '!': 350,
+    '?': 350,
+    ',': 200,
+    ';': 250,
+    ':': 250,
+  };
+
+  constructor(
+    agent: ReActAgent,
+    config: ReActStreamConfig = DEFAULT_STREAM_CONFIG
+  ) {
+    this.agent = agent;
+    this.config = { ...DEFAULT_STREAM_CONFIG, ...config };
+  }
+
+  /**
+   * Create a readable stream that processes the question and streams the response
+   *
+   * @param question The user's question to process
+   * @param callbacks Optional callbacks for handling events during processing
+   * @returns A readable stream that emits the response
+   */
+  public create_readable_stream(
+    question: string,
+    external_callbacks?: ReActCallbacks
+  ): Readable {
+    // Create a readable stream with a simple cleanup handler
+    const readable = new Readable({
+      read: () => {},
+      destroy: (error, callback) => {
+        // Abort any pending requests in the agent
+        this.agent.abort();
+
+        if (callback) callback(error);
+      },
+    });
+
+    // Start processing in the background
+    this.process_question(question, readable, external_callbacks).catch(
+      (error) => {
+        readable.destroy(
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
+    );
+
+    return readable;
+  }
+
+  private async stream_words(readable: Readable, text: string) {
+    // Use GPT tokenizer to break text into natural token chunks
+    const tokens = encode(text);
+    const speed = this.typing_speeds[this.config.typing_speed || 'normal'];
+
+    // Stream text token by token with natural timing
+    let accumulated_text = '';
+
+    for (let i = 0; i < tokens.length; i++) {
+      // Decode the current token to text
+      const token_text = decode([tokens[i]]);
+      accumulated_text += token_text;
+
+      // Add a tiny delay before whitespace at token start to make it feel more natural
+      if (token_text.startsWith(' ') || token_text.startsWith('\n')) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.max(3, speed.base / 4))
+        );
+      }
+
+      readable.push(token_text);
+
+      // Calculate delay based on token complexity
+      const token_length = token_text.length;
+      let delay = speed.base * (Math.min(token_length, 4) / 3);
+
+      // Add some randomness for naturality
+      delay += (Math.random() * 2 - 1) * speed.variance;
+
+      // Add pauses for punctuation if enabled
+      if (this.config.natural_pauses) {
+        const last_char = token_text[token_text.length - 1];
+        const pause = this.PUNCTUATION_DELAYS[last_char] || 0;
+
+        if (pause > 0) {
+          await new Promise((resolve) => setTimeout(resolve, pause));
+          continue;
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, Math.max(2, delay)));
+    }
+  }
+
+  private async process_question(
+    question: string,
+    readable: Readable,
+    external_callbacks?: ReActCallbacks
+  ) {
+    try {
+      // Use a promise to track the current streaming operation
+      let current_stream_promise = Promise.resolve();
+
+      // Define callbacks for the agent
+      const callbacks: ReActCallbacks = {
+        // Merge external callbacks with our stream-specific ones
+        ...external_callbacks,
+
+        onChunk: (chunk) => {
+          // Call external callback if provided
+          external_callbacks?.onChunk?.(chunk);
+
+          // Chain the streaming promises to ensure proper sequence
+          current_stream_promise = current_stream_promise.then(async () => {
+            try {
+              const parsed = react_response_schema.parse(JSON.parse(chunk));
+
+              // Stream thoughts if enabled
+              if (parsed.thought && this.config.stream_thoughts) {
+                readable.push('\n*');
+                await this.stream_words(readable, parsed.thought);
+                readable.push('*\n');
+                await new Promise((resolve) =>
+                  setTimeout(resolve, this.ROUND_DELAY_MS)
+                );
+              }
+
+              // Stream actions if enabled
+              if (
+                parsed.action &&
+                parsed.input !== undefined &&
+                this.config.stream_actions
+              ) {
+                readable.push('\n**');
+                await this.stream_words(
+                  readable,
+                  `${parsed.action} => ${JSON.stringify(parsed.input)}`
+                );
+                readable.push('**\n');
+                await new Promise((resolve) =>
+                  setTimeout(resolve, this.ROUND_DELAY_MS)
+                );
+              }
+
+              // Stream final answer
+              if (parsed.final_answer) {
+                readable.push('\n');
+                await this.stream_words(readable, parsed.final_answer);
+                readable.push('\n');
+              }
+            } catch (e) {
+              // If parsing fails, stream the raw chunk
+              await this.stream_words(readable, chunk);
+            }
+          });
+        },
+
+        // Merge with external callbacks but ensure we handle tool observations
+        onToolObservation: (observation) => {
+          // Call external callback if provided
+          external_callbacks?.onToolObservation?.(observation);
+        },
+
+        // End the stream when we have a final answer
+        onFinalAnswer: async (answer) => {
+          // Call external callback if provided
+          external_callbacks?.onFinalAnswer?.(answer);
+
+          // Wait for all streaming to complete before ending
+          await current_stream_promise;
+          readable.push(null); // End the stream
+        },
+
+        // Handle errors by destroying the stream
+        onError: (error) => {
+          // Call external callback if provided
+          external_callbacks?.onError?.(error);
+
+          readable.destroy(error);
+        },
+      };
+
+      // Process the question with our callbacks
+      await this.agent.answer(question, callbacks);
+    } catch (error) {
+      // If any error occurs during processing, destroy the stream
+      readable.destroy(
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+}
+</file>
+
+<file path="src/react/types.ts">
+// ~/src/react/types.ts
+// ReAct-specific type definitions
+
+import type { AiCallbacks } from '../core/types';
+import type { react_response_schema } from './react.schema';
+import type { ToolDefinition } from './tools/setup';
+import type { z } from 'zod';
+
+// Core ReAct response type
+export type ReActResponse = z.infer<typeof react_response_schema>;
+
+// ReAct callbacks extending base AI callbacks
+export interface ReActCallbacks extends AiCallbacks {
+  onChunk?: (chunk: string) => void;
+  onToolObservation?: (observation: {
+    data: string;
+    is_error: boolean;
+  }) => void;
+  onFinalAnswer?: (answer: string) => void;
+  onIteration?: (count: number) => void;
+  onError?: (error: Error) => void;
+}
+
+// Types for action/observation history
+export interface ReActAction {
+  action: string;
+  input: unknown;
+  observation: string;
+}
+
+// Token usage tracking
+export interface ReActTokenUsage {
+  source: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+// Evidence record for tracking results
+export interface ReActEvidenceRecord {
+  session_id: string;
+  evidence_id: string;
+  content: string;
+  created_at: number;
+  step_type: 'thought' | 'action' | 'observation' | 'final_answer';
+}
+
+// Tool state management
+export interface ReActToolState {
+  tools: Map<string, ToolDefinition>;
+  tool_name_map: Map<string, string>;
+}
+
+// History state management
+export interface ReActHistoryState {
+  previous_actions: ReActAction[];
+  previous_thoughts: string[];
+  token_usage?: ReActTokenUsage[];
+}
+
+// Session state management
+export interface ReActSessionState {
+  session_id: string;
+  user_input: string;
+  timestamp: number;
+  max_iterations: number;
+  final_answer?: string;
+}
+
+// Core ReAct state interface
+export interface ReActState {
+  tools: ReActToolState;
+  history: ReActHistoryState;
+  session: ReActSessionState;
+  errors?: Error[];
+}
+
+// Configuration for ReAct agent
+export interface ReActConfig {
+  max_iterations: number;
+  tools: ReActToolState;
+  history: ReActHistoryState;
+  session: ReActSessionState;
+}
+</file>
+
+<file path="src/react/README.md">
+# ReAct System
+
+A powerful implementation of the ReAct (Reasoning and Acting) pattern for Large Language Models (LLMs), featuring self-reflection, planning, and streaming capabilities.
+
+## Overview
+
+The ReAct system implements a structured approach to problem-solving that combines:
+
+- Step-by-step reasoning
+- Tool-based actions
+- Self-reflection and planning
+- Real-time streaming of thoughts and actions
+
+## Core Components
+
+### ReActAgent
+
+The main agent that orchestrates the ReAct pattern:
+
+- Manages the core ReAct loop (Thought -> Action -> Observation)
+- Initializes tools based on configuration
+- Handles conversation history and state management
+- Executes tools via `ReActToolExecutor`
+- Interacts with the LLM via `AiGenerate`
+- Manages error handling and iteration limits
+- Provides callbacks for various events (`onChunk`, `onToolObservation`, `onFinalAnswer`, etc.)
+- Contains a `cleanup` method for resource management
+
+### ReActStream
+
+Provides a Node.js `Readable` stream interface for agent interactions:
+
+- Wraps a `ReActAgent` instance
+- Streams thoughts, actions, and final answers in real-time
+- Uses `gpt-tokenizer` for natural word/token streaming
+- Configurable options:
+  - `stream_thoughts`: Enable/disable thought streaming
+  - `stream_actions`: Enable/disable action streaming
+  - `typing_speed`: Adjusts the speed of streamed output ('slow', 'normal', 'fast')
+  - `natural_pauses`: Adds delays for punctuation for a more human-like feel
+- Handles background processing and stream lifecycle (creation, destruction, error handling)
+
+### ReActAgentSingleton
+
+Singleton wrapper for CLI applications:
+
+- Ensures only one `ReActAgent` instance exists globally
+- Provides static methods for initialization (`initialize`), getting the agent (`get_agent`), and cleanup (`cleanup`, `reset`)
+- Automatically handles cleanup on process exit events (SIGINT, uncaughtException, beforeExit)
+- Offers convenience methods like `answer` and `abort` that proxy to the underlying agent instance
+- Suitable for applications needing a single, easily accessible agent
+
+## Usage
+
+### CLI Mode
+
+```bash
+npm run react-cli
+```
+
+#### ReAct CLI with Streaming
+
+A command-line interface for interacting with ReAct Agent with streaming capabilities.
+
+#### Setup
+
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Create a `.env` file with `CEREBRAS_API_KEY=your_api_key_here`
+
+#### Usage
+
+Run the CLI:
+
+```bash
+npm run react-cli
+```
+
+#### Commands
+
+The CLI supports the following commands:
+
+- `toggle_mode` - Switch between streaming and standard mode
+- `toggle_stream` - Toggle streaming of thoughts and actions
+- `toggle_thoughts` - Toggle streaming of thoughts only
+- `toggle_actions` - Toggle streaming of actions only
+- `q`, `quit`, `clear` - Exit the application
+
+#### Default Tools
+
+The CLI is configured by default with the following tools:
+
+- `calculator`: Performs mathematical calculations.
+- `search_web`: Searches the web for information.
+- `thought`: Allows the agent to record internal thoughts or reflections.
+- `rag`: Retrieves information from a pre-configured knowledge base (Retrieval-Augmented Generation). The default configuration points to an 'Apple History' library.
+
+### API Mode
+
+```bash
+npm run react-api
+```
+
+### Configuration
+
+```typescript
+const ai_config = {
+  base_url: 'your_api_base_url',
+  api_key: 'your_api_key',
+  model: 'your_model_name',
+  max_tokens: null,
+  temperature: 0.6,
+};
+
+const tools_config = {
+  enabled_tools: ['tool1', 'tool2'],
+  // ... other tool configurations
+};
+
+const stream_config = {
+  stream_thoughts: false,
+  stream_actions: false,
+};
+```
+
+## Features
+
+### Self-Reflection and Planning
+
+- Automatic progress assessment
+- Iteration tracking
+- Resource management
+- Dynamic course correction
+
+### Tool Integration
+
+- Modular tool system with standardized interfaces (`ToolDefinition`)
+- Dynamic tool loading and configuration via `ToolsConfig`
+- Tools defined with name, description, arguments (using Zod schemas), and an `execute` function
+- Tool examples can be provided for few-shot prompting
+- `ReActToolExecutor` handles:
+  - Finding tools by primary or alternative names (case-insensitive)
+  - Parsing tool input (expects JSON or object)
+  - Calling the tool's `execute` method
+  - Handling tool-specific errors (`ReActToolError`)
+  - Returning the observation (result or error message) to the agent
+- Error handling and recovery for tool execution failures
+
+### Streaming
+
+- Real-time output
+- Configurable streaming options
+- Natural reading pace
+- Background processing
+
+## Architecture
+
+1. User submits a question
+2. Agent processes through ReAct cycles:
+   - Thought: Reasoning about the problem
+   - Action: Selecting and executing tools
+   - Observation: Processing tool results
+3. Self-reflection at configurable intervals
+4. Final answer generation
+
+## Error Handling
+
+- Graceful error recovery
+- Process signal handling
+- Resource cleanup
+- Content moderation
+
+## Logging
+
+- Each session (initiated by a user question in the CLI) is logged to a Markdown file.
+- Logs are stored in the `src/react/logs/` directory.
+- The filename format is `<session_id>_log.md`.
+- Logs contain:
+  - Session ID, timestamp, and the initial user input.
+  - A detailed step-by-step breakdown of the ReAct process:
+    - Thoughts
+    - Actions taken (tool name)
+    - Input provided to the tool
+    - Observations received from the tool
+  - Any errors encountered during the process.
+  - The final answer provided to the user.
+  - Token usage statistics (prompt, completion, total) broken down by source (e.g., model response).
+
+## License
+
+ISC License
+</file>
+
+<file path="src/react/todo.md">
+## ReAct Todos
+
+- [ ] Example web api
+- [ ] GEAR Tool matching
+- [ ] Smarter use of a new Library tool- Document list, more filters etc
+- [x] Logging as with with ReWOO
+- [x] ReadableStream wrapper
+- [x] Token counting for costing
+
+## Notes
+</file>
+
+</files>

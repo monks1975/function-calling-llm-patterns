@@ -1,0 +1,2582 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: src/rewoo/**/*
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+src/
+  rewoo/
+    tests/
+      test_calculator_examples.ts
+      test_calculator_plan.ts
+    tools/
+      calculator.tool.ts
+      library.tool.ts
+      llm.tool.ts
+      memory_by_keyword.tool.ts
+      recent_memory.tool.ts
+      tavily.tool.ts
+    ai.ts
+    cli.ts
+    events.ts
+    helpers.ts
+    planner.examples.ts
+    planner.ts
+    README.md
+    rewoo.ts
+    solver.ts
+    tsconfig.json
+    types.ts
+    worker.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/rewoo/tests/test_calculator_examples.ts">
+import { CalculatorTool } from '../tools/calculator.tool';
+
+async function test_calculator_examples() {
+  const calculator = new CalculatorTool();
+
+  // Test the specific example from the original request
+  const example = '20000 - The Meldrew Point is 19,537 days';
+  console.log(`Testing original example: "${example}"`);
+  const result = await calculator.execute(example);
+  console.log(`Result: ${result}`);
+
+  // Test additional examples
+  const examples = [
+    // Subtraction with text
+    'Calculate 50000 - The user is 45,678 days old',
+    // Addition with text
+    'Add 100 + The price is 250 dollars',
+    // Multiplication with text
+    'Multiply 5 * The quantity is 10 units',
+    // Division with text
+    'Divide 1000 / The rate is 20 per hour',
+    // Complex expression with text
+    '(5000 + The base salary is 3000) * The multiplier is 1.5',
+  ];
+
+  for (const example of examples) {
+    console.log(`\nTesting: "${example}"`);
+    try {
+      const result = await calculator.execute(example);
+      console.log(`Result: ${result}`);
+    } catch (error) {
+      console.error(`Error: ${error}`);
+    }
+  }
+}
+
+test_calculator_examples().catch(console.error);
+</file>
+
+<file path="src/rewoo/tests/test_calculator_plan.ts">
+import { CalculatorTool } from '../tools/calculator.tool';
+
+async function test_calculator_plan() {
+  const calculator = new CalculatorTool();
+
+  // Simulate the values from the log file
+  const e2 = '18292.5'; // User's age in days
+  const e3 = 'The Meldrew Point is 19,537 days.'; // LLM output with text
+
+  console.log('Testing the exact scenario from the log file:');
+  console.log(`E2 (User's age in days): ${e2}`);
+  console.log(`E3 (LLM output): ${e3}`);
+
+  // Test individual extraction
+  console.log('\nTesting extraction of E3:');
+  const e3_result = await calculator.execute(e3);
+  console.log(`Result: ${e3_result}`);
+
+  // Test the calculation that failed in the log
+  console.log('\nTesting the calculation that failed (E2 - E3):');
+  const calculation = `${e2} - ${e3}`;
+  console.log(`Expression: ${calculation}`);
+  const result = await calculator.execute(calculation);
+  console.log(`Result: ${result}`);
+
+  // Test with variables directly
+  console.log('\nTesting with variable substitution:');
+  const with_vars = '#E2 - #E3';
+  console.log(`Expression with variables: ${with_vars}`);
+
+  // Simulate variable substitution (as would happen in the ReWOO system)
+  const substituted = with_vars.replace('#E2', e2).replace('#E3', e3);
+  console.log(`After substitution: ${substituted}`);
+  const var_result = await calculator.execute(substituted);
+  console.log(`Result: ${var_result}`);
+}
+
+test_calculator_plan().catch(console.error);
+</file>
+
+<file path="src/rewoo/README.md">
+# ReWOO (Reasoning WithOut Observation)
+
+ReWOO is an innovative Augmented Language Model (ALM) system that decouples reasoning from observations to achieve efficient and scalable task execution. Based on the research paper "ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models" by Xu et al., this implementation provides a modular paradigm that significantly reduces token consumption while maintaining or improving performance.
+
+## Research Context
+
+ReWOO addresses key challenges in traditional ALM systems:
+
+- Eliminates redundant prompts and repeated execution
+- Achieves 5x token efficiency on multi-step reasoning tasks
+- Improves accuracy by 4% on HotpotQA benchmark
+- Demonstrates robustness under tool-failure scenarios
+- Enables instruction fine-tuning to offload LLMs into smaller models
+
+The system's architecture separates the reasoning process from external observations, allowing for:
+
+- More efficient token usage
+- Better scalability
+- Improved performance on complex reasoning tasks
+- Reduced model parameter requirements
+
+## Architecture
+
+### Core Components
+
+1. **Planner Agent**
+
+   - Breaks down tasks into sequential steps
+   - Uses AI to create structured execution plans
+   - Each step is assigned a unique evidence variable (#E1, #E2, etc.)
+   - Supports fallback planning for error cases
+
+2. **Worker**
+
+   - Executes individual steps in the plan
+   - Manages tool execution and event handling
+   - Handles error cases and retries
+   - Maintains execution state
+
+3. **Solver Agent**
+
+   - Analyzes collected evidence
+   - Synthesizes final solutions
+   - Provides structured summaries of evidence
+   - Handles incomplete or missing information gracefully
+
+4. **Event System**
+   - Two-layer event architecture (low-level tool events and high-level process events)
+   - Provides granular control through callbacks
+   - Maintains execution context and state
+   - Supports event-based monitoring and debugging
+
+### Available Tools
+
+1. **LLM Tool**
+
+   - Direct interaction with language models
+   - Supports multiple AI providers
+   - Handles retries and error cases
+
+2. **Search Tool**
+
+   - Web search capabilities
+   - Information gathering
+   - External knowledge integration
+
+3. **Memory Tools**
+   - RecentMemory: Access to recent conversations
+   - MemoryByKeyword: Semantic search through conversation history
+   - Evidence tracking and retrieval
+
+## Workflow
+
+1. **Task Reception**
+
+   - System receives a task or query
+   - Initializes execution state and session
+
+2. **Planning Phase**
+
+   - Planner Agent creates sequential execution plan
+   - Each step is assigned a unique evidence variable
+   - Plan includes tool selection and arguments
+
+3. **Execution Phase**
+
+   - Worker executes each step in sequence
+   - Tools gather evidence and information
+   - Results are stored in state
+   - Events track progress and errors
+
+4. **Solving Phase**
+   - Solver Agent analyzes collected evidence
+   - Creates structured summaries
+   - Generates final solution
+   - Handles missing or incomplete information
+
+## State Management
+
+The system maintains a structured state object that includes:
+
+- Session ID
+- Task description
+- Execution plan
+- Step definitions
+- Collected results
+- Error tracking
+- Token usage statistics
+
+## Event Types
+
+### Core Events
+
+- `tool_start`: Tool execution beginning
+- `tool_complete`: Tool execution completed
+- `plan`: Planning phase complete
+- `solve`: Solution phase complete
+- `error`: Error occurred
+- `completion`: AI completion received
+
+### Event Context
+
+Each event includes:
+
+- Session ID
+- Task description
+- Step information
+- Tool details
+- Arguments
+- State snapshot
+
+## Error Handling
+
+1. **Planning Errors**
+
+   - Fallback to basic plan
+   - Error event emission
+   - State preservation
+
+2. **Execution Errors**
+
+   - Tool retry mechanism
+   - Error context preservation
+   - State recovery
+
+3. **Solving Errors**
+   - Graceful degradation
+   - Partial solution generation
+   - Error reporting
+
+## Usage
+
+```typescript
+// Initialize ReWOO with configuration
+const rewoo = new ReWOO(ai_config, tools);
+
+// Execute a task
+const result = await rewoo.execute('Your task here');
+
+// Optional: Register callbacks for monitoring
+rewoo.on('plan', (state) => {
+  console.log('Plan created:', state.plan_string);
+});
+
+rewoo.on('tool_execute', (step, result) => {
+  console.log(`Tool ${step.tool} executed:`, result);
+});
+
+rewoo.on('solve', (state) => {
+  console.log('Solution found:', state.result);
+});
+```
+
+## Best Practices
+
+1. **Error Handling**
+
+   - Always implement error callbacks
+   - Use fallback mechanisms
+   - Preserve error context
+
+2. **State Management**
+
+   - Keep state immutable
+   - Use state snapshots
+   - Track execution progress
+
+3. **Event Cleanup**
+   - Remove listeners when done
+   - Clean up tool resources
+   - Implement proper shutdown
+
+## Configuration
+
+The system supports configuration for:
+
+- AI model selection
+- API endpoints
+- Temperature settings
+- Tool-specific parameters
+- Event handling preferences
+</file>
+
+<file path="src/rewoo/tools/tavily.tool.ts">
+// ~/src/ReWOO/tools/tavily.tool.ts
+
+import type { ReWooTool } from '../types';
+
+export class TavilyTool implements ReWooTool {
+  name = 'Tavily';
+  description =
+    'Searches the web using the Tavily API. Useful for fetching up-to-date information.';
+  private api_key: string;
+
+  constructor(tavily_api_key: string) {
+    this.api_key = tavily_api_key;
+  }
+
+  async execute(query: string): Promise<string> {
+    try {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.api_key}`,
+        },
+        body: JSON.stringify({
+          query,
+          max_results: 5,
+          include_answer: 'basic',
+          // include_domains: ['en.wikipedia.org'],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Search API returned ${response.status}: ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+
+      // Format the search results with Tavily answer if available
+      let formatted_results = '';
+
+      if (data.answer) {
+        formatted_results += `## Tavily Answer\n\n${data.answer}\n\n## Supporting Sources\n\n`;
+      }
+
+      formatted_results += data.results
+        .map(
+          (result: any) =>
+            `### ${result.title}\n\n${result.content}\n\n[Source](${result.url})`
+        )
+        .join('\n\n---\n\n');
+
+      return formatted_results;
+    } catch (error) {
+      console.error('Search API error:', error);
+      throw error;
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/tsconfig.json">
+// ~/src/ReWOO/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "../../dist/rewoo",
+    "declaration": true,
+    "typeRoots": ["../../node_modules/@types", "types"]
+  },
+  "include": ["**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+</file>
+
+<file path="src/rewoo/tools/calculator.tool.ts">
+// ~/src/ReWOO/tools/calculator.tool.ts
+
+import { ReWooTool } from '../types';
+
+export class CalculatorTool implements ReWooTool {
+  name = 'Calculator';
+  description =
+    'A tool for performing mathematical calculations. Input must be a valid math.js expression.';
+
+  private extract_numbers_from_text(text: string): number[] {
+    // Remove commas from numbers
+    const no_commas = text.replace(/(\d),(\d)/g, '$1$2');
+
+    // Look for patterns like "X is Y" where Y is a number
+    const is_pattern = /\b(?:is|equals|=)\s+(\d+(?:\.\d+)?)/i;
+    const is_match = no_commas.match(is_pattern);
+    if (is_match && is_match[1]) {
+      return [parseFloat(is_match[1])];
+    }
+
+    // Extract all numbers from the text
+    const number_pattern = /\b(\d+(?:\.\d+)?)\b/g;
+    const matches = [...no_commas.matchAll(number_pattern)];
+    return matches.map((match) => parseFloat(match[1]));
+  }
+
+  private process_expression(input: string): string {
+    // Remove commas from numbers
+    let processed = input.replace(/(\d),(\d)/g, '$1$2');
+
+    // Check for parenthesized expressions
+    const parenthesis_pattern = /\([^\(\)]*\)/g;
+    const has_parenthesis = parenthesis_pattern.test(processed);
+
+    // If input is a clean math expression, return it
+    if (/^[\d\s\+\-\*\/\^\(\)\.\%]*$/.test(processed)) {
+      return processed;
+    }
+
+    // If input contains text, process it
+    if (/[a-zA-Z]/.test(processed)) {
+      // Handle complex expressions with parentheses
+      if (has_parenthesis) {
+        // Process each parenthesized group
+        processed = processed.replace(/\(([^\(\)]*)\)/g, (match, group) => {
+          // If the group contains text, extract numbers
+          if (/[a-zA-Z]/.test(group)) {
+            const numbers = this.extract_numbers_from_text(group);
+            if (numbers.length > 0) {
+              // Use the largest number
+              return numbers.sort((a, b) => b - a)[0].toString();
+            }
+            return '0';
+          }
+          return match; // Keep unchanged if no text
+        });
+      }
+
+      // Split by operators to handle expressions like "X - Y"
+      const parts = processed.split(/(\s*[\+\-\*\/\^]\s*)/);
+
+      // Process each part
+      const processed_parts = parts.map((part) => {
+        // If part is an operator, keep it
+        if (/^\s*[\+\-\*\/\^]\s*$/.test(part)) {
+          return part;
+        }
+
+        // If part contains text, extract numbers
+        if (/[a-zA-Z]/.test(part)) {
+          const numbers = this.extract_numbers_from_text(part);
+          if (numbers.length > 0) {
+            // Use the largest number (likely the main value)
+            return numbers.sort((a, b) => b - a)[0].toString();
+          }
+          return '0'; // Default if no numbers found
+        }
+
+        return part; // Return unchanged if no text
+      });
+
+      return processed_parts.join('').trim();
+    }
+
+    return processed;
+  }
+
+  async execute(args: string): Promise<string> {
+    if (!args || args.trim() === '') {
+      return 'No input provided for calculation';
+    }
+
+    try {
+      const math = await import('mathjs');
+
+      // Process the input to extract a valid expression
+      const processed_args = this.process_expression(args);
+
+      // Evaluate the expression
+      const math_result = math.evaluate(processed_args);
+
+      // Return only the result, without any additional information
+      return math_result.toString();
+    } catch (error: unknown) {
+      // If evaluation fails, try to extract and return just the numbers
+      const numbers = this.extract_numbers_from_text(args);
+
+      if (numbers.length > 0) {
+        // If we have two numbers and a minus sign, assume subtraction
+        if (numbers.length === 2 && args.includes('-')) {
+          // Determine order based on position in the string
+          const firstPos = args.indexOf(
+            numbers[0].toString().replace('.', '\\.')
+          );
+          const secondPos = args.indexOf(
+            numbers[1].toString().replace('.', '\\.')
+          );
+
+          if (firstPos < secondPos) {
+            return (numbers[0] - numbers[1]).toString();
+          } else {
+            return (numbers[1] - numbers[0]).toString();
+          }
+        }
+
+        // If we have a multiplication sign, try to multiply the numbers
+        if (args.includes('*') && numbers.length >= 2) {
+          return (numbers[0] * numbers[1]).toString();
+        }
+
+        // If we have a plus sign, try to add the numbers
+        if (args.includes('+') && numbers.length >= 2) {
+          return (numbers[0] + numbers[1]).toString();
+        }
+
+        // If we have a division sign, try to divide the numbers
+        if (args.includes('/') && numbers.length >= 2) {
+          return (numbers[0] / numbers[1]).toString();
+        }
+
+        // Otherwise, return the first number found
+        return numbers[0].toString();
+      }
+
+      if (error instanceof Error) {
+        return `Failed to evaluate expression: ${error.message}`;
+      }
+      return 'An unknown error occurred while calculating';
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/tools/library.tool.ts">
+// ~/src/ReWOO/tools/library.tool.ts
+
+import { rag_fetch_and_parse_json } from '../../core/services';
+
+import type { ReWooTool } from '../types';
+
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+interface Chunk {
+  id: number;
+  pipeline: number;
+  order: number;
+  text: string;
+}
+
+interface ChunkSearch extends Chunk {
+  keyword_rank: number;
+  semantic_distance: number;
+  weighted_rank: number;
+  metadata: unknown | null;
+}
+
+// Define metadata type based on the backend implementation
+interface ChunkMetadata {
+  headings?: string[];
+  captions?: string[];
+  page?: number;
+}
+
+export class LibraryTool implements ReWooTool {
+  name = 'Library';
+  description =
+    'Returns a list of relevant documents from a library that will be relevant to the user query.';
+  private library_uuid: string;
+
+  constructor(description: string, library_uuid: string) {
+    this.library_uuid = library_uuid;
+    this.description = description;
+  }
+
+  async execute(args: string): Promise<string> {
+    try {
+      const search_params = new URLSearchParams({
+        q: args,
+        pipeline__document__library: this.library_uuid,
+      });
+
+      const response = await rag_fetch_and_parse_json<
+        PaginatedResponse<ChunkSearch>,
+        { error: string }
+      >(`/documents/chunks/search/?${search_params.toString()}`);
+
+      if (!response.success) {
+        throw new Error(`Search failed: ${response.data.error}`);
+      }
+
+      if (!response.data.results?.length) {
+        return `No results found for query: "${args}"`;
+      }
+
+      // Format results as markdown, filtering out low relevance results
+      const results = response.data.results
+        .filter((chunk) => chunk.weighted_rank > 0)
+        .slice(0, 5)
+        .map((chunk) => {
+          const metadata = chunk.metadata as ChunkMetadata;
+          const title = metadata?.headings?.[0] || 'Untitled';
+          const subheadings = metadata?.headings?.slice(1).join(' > ') || '';
+
+          // Convert semantic distance to similarity (1 - distance)
+          // This gives us a score where higher is better
+          const semantic_similarity = 1 - chunk.semantic_distance;
+
+          // Calculate a more accurate relevance score
+          // Using default weights from backend (semantic=0.7, keyword=0.3)
+          const relevance = Math.round(
+            (0.7 * semantic_similarity + 0.3 * chunk.keyword_rank) * 100
+          );
+
+          return [
+            `### ${title}`,
+            `**Relevance:** ${relevance}%`,
+            subheadings && `**Section:** ${subheadings}`,
+            chunk.text,
+            metadata?.page && `**Page:** ${metadata.page}`,
+            metadata?.captions?.length &&
+              `**Captions:** ${metadata.captions.join(', ')}`,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+        })
+        .join('\n\n---\n\n');
+
+      return results;
+    } catch (error) {
+      return `Error executing library search: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`;
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/events.ts">
+// ~/src/rewoo/events.ts
+// ReWOO-specific event handling
+
+import { Observable, Subject, filter, share } from 'rxjs';
+
+import type { ChatCompletion } from 'openai/resources/chat';
+import type { ReWooStep, ReWooState } from './types';
+import type { EventBus as CoreEventBus } from '../core/types';
+
+// Define a discriminated union of events
+export type ReWOOEvent =
+  | { type: 'plan_created'; plan: Partial<ReWooState> }
+  | { type: 'tool_start'; step: ReWooStep; args: string }
+  | { type: 'tool_complete'; step: ReWooStep; result: string }
+  | { type: 'solution_found'; solution: string; state: ReWooState }
+  | { type: 'info'; message: string }
+  | { type: 'retry'; attempt: number; error: Error; backoff_ms: number }
+  | { type: 'error'; error: Error; context?: string; step?: ReWooStep }
+  | {
+      type: 'completion';
+      completion: ChatCompletion;
+      source: 'planner' | 'solver' | 'llm';
+    };
+
+export class EventBus implements CoreEventBus {
+  private events$ = new Subject<ReWOOEvent>();
+
+  // Public observable that shares a single subscription
+  public readonly events = this.events$.pipe(share());
+
+  // Publish an event
+  emit(event: ReWOOEvent): void {
+    this.events$.next(event);
+  }
+
+  // Helper methods to get specific event types
+  onPlanCreated(): Observable<ReWOOEvent & { type: 'plan_created' }> {
+    return this.events.pipe(
+      filter(
+        (e): e is ReWOOEvent & { type: 'plan_created' } =>
+          e.type === 'plan_created'
+      )
+    );
+  }
+
+  onToolStart(): Observable<ReWOOEvent & { type: 'tool_start' }> {
+    return this.events.pipe(
+      filter(
+        (e): e is ReWOOEvent & { type: 'tool_start' } => e.type === 'tool_start'
+      )
+    );
+  }
+
+  onToolComplete(): Observable<ReWOOEvent & { type: 'tool_complete' }> {
+    return this.events.pipe(
+      filter(
+        (e): e is ReWOOEvent & { type: 'tool_complete' } =>
+          e.type === 'tool_complete'
+      )
+    );
+  }
+
+  onSolutionFound(): Observable<ReWOOEvent & { type: 'solution_found' }> {
+    return this.events.pipe(
+      filter(
+        (e): e is ReWOOEvent & { type: 'solution_found' } =>
+          e.type === 'solution_found'
+      )
+    );
+  }
+
+  onError(): Observable<ReWOOEvent & { type: 'error' }> {
+    return this.events.pipe(
+      filter((e): e is ReWOOEvent & { type: 'error' } => e.type === 'error')
+    );
+  }
+
+  onCompletion(): Observable<ReWOOEvent & { type: 'completion' }> {
+    return this.events.pipe(
+      filter(
+        (e): e is ReWOOEvent & { type: 'completion' } => e.type === 'completion'
+      )
+    );
+  }
+}
+
+// Create a singleton instance
+export const event_bus = new EventBus();
+</file>
+
+<file path="src/rewoo/planner.examples.ts">
+// ~/src/rewoo/planner.examples.ts
+
+import type { ReWooPlanExample } from './types';
+
+export const examples: ReWooPlanExample[] = [
+  /*
+   * LLM Tools
+   * Examples demonstrating usage with only the default LLM tool
+   */
+
+  {
+    task: 'What are the three laws of motion?',
+    required_tools: ['LLM'],
+    plan_steps: [
+      "List and explain Newton's three laws. #E1 = LLM[Explain Newton's three laws of motion]",
+    ],
+  },
+  {
+    task: 'Who wrote Romeo and Juliet?',
+    required_tools: ['LLM'],
+    plan_steps: [
+      'Provide basic Shakespeare facts. #E1 = LLM[State when Shakespeare wrote Romeo and Juliet]',
+    ],
+  },
+  {
+    task: 'Explain how photosynthesis works',
+    required_tools: ['LLM'],
+    plan_steps: [
+      'Provide basic explanation of photosynthesis process. #E1 = LLM[Explain the core steps of photosynthesis]',
+      'Add details about cellular components involved. #E2 = LLM[Expand on cellular structures mentioned in (#E1)]',
+    ],
+  },
+  {
+    task: 'How does the water cycle work?',
+    required_tools: ['LLM'],
+    plan_steps: [
+      'Explain main water cycle stages. #E1 = LLM[List the main stages of the water cycle]',
+      'Provide details about each stage. #E2 = LLM[Elaborate on each stage from (#E1)]',
+    ],
+  },
+  {
+    task: 'Evaluate effective teaching methods for different learning styles',
+    required_tools: ['LLM'],
+    plan_steps: [
+      'Identify learning styles. #E1 = LLM[List and describe the main learning styles and their characteristics]',
+      'Analyze teaching methods. #E2 = LLM[Describe evidence-based teaching methods for different learning styles from (#E1)]',
+      'Evaluate effectiveness. #E3 = LLM[Analyze the effectiveness of different teaching methods for each learning style]',
+      'Generate recommendations. #E4 = LLM[Create specific teaching recommendations based on analysis in (#E2) and (#E3)]',
+      'Create implementation guide. #E5 = LLM[Develop practical implementation steps for recommendations in (#E4)]',
+    ],
+  },
+
+  /*
+   * Calculator Tool
+   * Examples demonstrating usage of calculator tool
+   */
+
+  {
+    task: 'What is 2 + 2?',
+    required_tools: ['Calculator'],
+    plan_steps: ['Calculate the sum of 2 and 2. #E1 = Calculator[2 + 2]'],
+  },
+
+  {
+    task: 'Calculate the area of a circle with radius 5',
+    required_tools: ['Calculator'],
+    plan_steps: ['Calculate area using pi*r^2. #E1 = Calculator[pi * 5 ^ 2]'],
+  },
+  {
+    task: 'What is the compound interest on $1000 invested at 5% APR for 3 years?',
+    required_tools: ['Calculator', 'LLM'],
+    plan_steps: [
+      'Calculate compound interest. #E1 = Calculator[1000 * (1 + 0.05) ^ 3 - 1000]',
+      'Explain the calculation. #E2 = LLM[Explain how compound interest of (#E1) was calculated]',
+    ],
+  },
+  {
+    task: 'Calculate mortgage payments based on current rates',
+    required_tools: ['Calculator', 'Tavily', 'LLM'],
+    plan_steps: [
+      'Get current rate data. #E1 = Tavily[current average 30 year fixed mortgage rate]',
+      'Extract rate value. #E2 = LLM[Extract just the interest rate as a decimal number from (#E1)]',
+      'Calculate payment. #E3 = Calculator[300000 * (#E2/12 * (1 + #E2/12) ^ 360) / ((1 + #E2/12) ^ 360 - 1)]',
+      'Analyze payment. #E4 = LLM[Explain monthly payment (#E3) in context of current rate (#E1)]',
+    ],
+  },
+
+  {
+    task: 'Calculate the area and perimeter of a rectangle with length 8 and width 5',
+    required_tools: ['Calculator'],
+    plan_steps: [
+      'Calculate area. #E1 = Calculator[8 * 5]',
+      'Calculate perimeter. #E2 = Calculator[2 * (8 + 5)]',
+      'Calculate diagonal. #E3 = Calculator[sqrt(8^2 + 5^2)]',
+    ],
+  },
+
+  {
+    task: 'Analyze investment portfolio with compound interest and inflation adjustment',
+    required_tools: ['Calculator', 'LLM'],
+    plan_steps: [
+      'Calculate initial growth. #E1 = Calculator[10000 * (1 + 0.07)^10]',
+      'Calculate inflation impact. #E2 = Calculator[#E1 / (1 + 0.03)^10]',
+      'Calculate real return percentage. #E3 = Calculator[(#E2 / 10000 - 1) * 100]',
+      'Calculate alternative investment. #E4 = Calculator[10000 * (1 + 0.09)^10 / (1 + 0.03)^10]',
+      'Calculate difference. #E5 = Calculator[#E4 - #E2]',
+      'Analyze results. #E6 = LLM[Compare investment outcomes using nominal value (#E1), inflation-adjusted value (#E2), real return (#E3), and alternative strategy difference (#E5)]',
+    ],
+  },
+
+  {
+    task: 'Compare portfolio returns to market benchmarks',
+    required_tools: ['Calculator', 'Tavily', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get portfolio data. #E1 = MemoryByKeyword[investment portfolio returns]',
+      'Extract portfolio return. #E2 = LLM[Extract return percentage as decimal number from (#E1)]',
+      'Get market data. #E3 = Tavily[S&P 500 YTD return percentage]',
+      'Extract market return. #E4 = LLM[Extract S&P return percentage as decimal number from (#E3)]',
+      'Calculate difference. #E5 = Calculator[#E2 - #E4]',
+      'Generate analysis. #E6 = LLM[Analyze portfolio vs market performance using calculated difference (#E5)]',
+    ],
+  },
+
+  /*
+   * Web Search Tools
+   * Examples demonstrating usage of web search tool Tavily
+   */
+
+  {
+    task: 'What is the capital of France?',
+    required_tools: ['Tavily', 'LLM'],
+    plan_steps: [
+      'Search for basic facts. #E1 = Tavily[capital of France facts]',
+    ],
+  },
+  {
+    task: 'What is the population of Tokyo?',
+    required_tools: ['Tavily'],
+    plan_steps: [
+      'Search for current population data. #E1 = Tavily[Tokyo current population statistics]',
+      'Analyze findings for key trends. #E2 = LLM[Analyze (#E1) to identify major trends and impacts]',
+    ],
+  },
+  {
+    task: 'When was the Declaration of Independence signed?',
+    required_tools: ['Tavily'],
+    plan_steps: [
+      'Search for historical date. #E1 = Tavily[When was US Declaration of Independence signed]',
+    ],
+  },
+  {
+    task: 'How has artificial intelligence impacted healthcare in the last 5 years?',
+    required_tools: ['Tavily', 'LLM'],
+    plan_steps: [
+      'Search for recent AI healthcare innovations. #E1 = Tavily[artificial intelligence healthcare developments 2019-2024]',
+      'Search for impact statistics. #E2 = Tavily[statistics AI healthcare improvements outcomes 2019-2024]',
+      'Search for challenges and limitations. #E3 = Tavily[AI healthcare challenges ethical concerns limitations]',
+      'Analyze findings for key trends. #E4 = LLM[Analyze (#E1) (#E2) (#E3) to identify major trends and impacts]',
+      'Create comprehensive summary. #E5 = LLM[Create structured overview from (#E4) highlighting benefits and challenges]',
+    ],
+  },
+  {
+    task: 'What are the environmental and economic impacts of renewable energy adoption?',
+    required_tools: ['Tavily', 'LLM'],
+    plan_steps: [
+      'Search for environmental impact data. #E1 = Tavily[renewable energy environmental impact statistics 2024]',
+      'Search for economic effects. #E2 = Tavily[renewable energy economic impact job creation costs]',
+      'Search for adoption challenges. #E3 = Tavily[renewable energy implementation challenges infrastructure costs]',
+      'Analyze environmental aspects. #E4 = LLM[Analyze environmental impacts from (#E1)]',
+      'Create comprehensive assessment. #E5 = LLM[Synthesize (#E2) (#E3) (#E4) into balanced analysis of impacts]',
+    ],
+  },
+
+  /*
+   * Memory Tools
+   * Examples demonstrating usage of memory-related tools RecentMemory and MemoryByKeyword
+   */
+
+  {
+    task: 'What have I asked about renewable energy?',
+    required_tools: ['MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Search memory for energy topics. #E1 = MemoryByKeyword[renewable energy, solar, wind power]',
+      'Create structured summary. #E2 = LLM[Organize key points from (#E1)]',
+    ],
+  },
+  {
+    task: 'Show me our recent discussions about machine learning',
+    required_tools: ['RecentMemory', 'LLM'],
+    plan_steps: [
+      'Get recent ML conversations. #E1 = RecentMemory[{"from_date": "2024-01-01"}]',
+      'Extract key insights. #E2 = LLM[Summarize machine learning topics from (#E1)]',
+    ],
+  },
+  {
+    task: 'What have we covered about quantum computing and AI?',
+    required_tools: ['MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Search quantum computing discussions. #E1 = MemoryByKeyword[quantum computing, qubits]',
+      'Search AI discussions. #E2 = MemoryByKeyword[artificial intelligence, AI, machine learning]',
+      'Create comprehensive overview. #E3 = LLM[Synthesize connections between (#E1) and (#E2)]',
+    ],
+  },
+  {
+    task: 'What questions did I ask last month about blockchain?',
+    required_tools: ['RecentMemory', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get recent blockchain memories. #E1 = RecentMemory[{"from_date": "2024-02-01", "to_date": "2024-02-29"}]',
+      'Search for related crypto topics. #E2 = MemoryByKeyword[cryptocurrency, NFT, web3]',
+      'Create timeline summary. #E3 = LLM[Create chronological overview from (#E1) and (#E2)]',
+    ],
+  },
+  {
+    task: 'How has my understanding of deep learning evolved?',
+    required_tools: ['RecentMemory', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get historical deep learning queries. #E1 = MemoryByKeyword[deep learning, neural networks]',
+      'Get recent discussions. #E2 = RecentMemory[{"limit": 5}]',
+      'Analyze learning progression. #E3 = LLM[Compare early vs recent understanding from (#E1) and (#E2)]',
+      'Create learning roadmap. #E4 = LLM[Build progression timeline and identify knowledge gaps from (#E3)]',
+    ],
+  },
+  {
+    task: 'What topics in physics have we discussed?',
+    required_tools: ['MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Search quantum physics topics. #E1 = MemoryByKeyword[quantum mechanics, particle physics]',
+      'Search classical physics topics. #E2 = MemoryByKeyword[classical mechanics, relativity]',
+      'Search applied physics topics. #E3 = MemoryByKeyword[thermodynamics, optics, electromagnetism]',
+      'Create subject overview. #E4 = LLM[Create categorized summary from (#E1) (#E2) (#E3)]',
+    ],
+  },
+  {
+    task: 'What programming languages have I asked about recently?',
+    required_tools: ['RecentMemory', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get recent coding discussions. #E1 = RecentMemory[{"limit": 10}]',
+      'Search specific languages. #E2 = MemoryByKeyword[Python, JavaScript, TypeScript, Rust]',
+      'Analyze programming interests. #E3 = LLM[Extract and categorize programming topics from (#E1) and (#E2)]',
+    ],
+  },
+  {
+    task: 'How have my interests in technology changed this year?',
+    required_tools: ['RecentMemory', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get early 2024 discussions. #E1 = RecentMemory[{"from_date": "2024-01-01", "to_date": "2024-01-31"}]',
+      'Get current interests. #E2 = RecentMemory[{"limit": 15}]',
+      'Search tech categories. #E3 = MemoryByKeyword[AI, blockchain, IoT, cybersecurity]',
+      'Analyze interest evolution. #E4 = LLM[Compare interest changes using (#E1) (#E2) (#E3)]',
+      'Create trend analysis. #E5 = LLM[Build visual timeline of interest evolution from (#E4)]',
+    ],
+  },
+  {
+    task: 'What environmental topics have we covered?',
+    required_tools: ['MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Search climate topics. #E1 = MemoryByKeyword[climate change, global warming]',
+      'Search conservation topics. #E2 = MemoryByKeyword[biodiversity, conservation, ecosystems]',
+      'Search sustainability topics. #E3 = MemoryByKeyword[renewable energy, recycling, sustainable]',
+      'Create environmental report. #E4 = LLM[Create comprehensive environmental topic analysis from (#E1) (#E2) (#E3)]',
+    ],
+  },
+  {
+    task: 'What have been my main areas of learning?',
+    required_tools: ['RecentMemory', 'MemoryByKeyword', 'LLM'],
+    plan_steps: [
+      'Get recent learning history. #E1 = RecentMemory[{"limit": 20}]',
+      'Search tech learning. #E2 = MemoryByKeyword[programming, AI, data science]',
+      'Search science learning. #E3 = MemoryByKeyword[physics, biology, chemistry]',
+      'Analyze learning patterns. #E4 = LLM[Identify main knowledge domains from (#E1) (#E2) (#E3)]',
+      'Create learning profile. #E5 = LLM[Build comprehensive learning profile and suggest growth areas from (#E4)]',
+    ],
+  },
+
+  /*
+   * Library Tools
+   * Examples demonstrating usage of library tool
+   */
+
+  {
+    task: 'Find information about photosynthesis',
+    required_tools: ['Library'],
+    plan_steps: [
+      'Search basic photosynthesis info. #E1 = Library[photosynthesis process overview]',
+    ],
+  },
+  {
+    task: 'Explain the differences between classical and quantum mechanics',
+    required_tools: ['Library', 'LLM'],
+    plan_steps: [
+      'Get core concepts. #E1 = Library["classical mechanics" OR "quantum mechanics" comparison fundamentals]',
+      'Create explanation. #E2 = LLM[Create clear comparison explanation from (#E1)]',
+    ],
+  },
+  {
+    task: 'Research the history and impact of the industrial revolution',
+    required_tools: ['Library', 'LLM'],
+    plan_steps: [
+      'Get historical overview. #E1 = Library["industrial revolution" history overview]',
+      'Get impact analysis. #E2 = Library["industrial revolution" social OR economic OR environmental impact]',
+      'Create synthesis. #E3 = LLM[Create comprehensive analysis combining historical data (#E1) with impact assessment (#E2)]',
+    ],
+  },
+  {
+    task: 'Research advances in renewable energy technology',
+    required_tools: ['Library', 'LLM'],
+    plan_steps: [
+      'Get historical context. #E1 = Library["renewable energy" history development]',
+      'Get current research. #E2 = Library["renewable energy" latest advances OR breakthroughs 2024]',
+      'Get efficiency data. #E3 = Library["renewable energy" efficiency comparison statistics]',
+      'Get future outlook. #E4 = Library["renewable energy" future predictions OR forecasts]',
+      'Create analysis. #E5 = LLM[Create comprehensive analysis of renewable energy progress using (#E1) (#E2) (#E3) (#E4)]',
+    ],
+  },
+  {
+    task: 'Research the evolution of artificial intelligence',
+    required_tools: ['Library', 'LLM'],
+    plan_steps: [
+      'Get early history. #E1 = Library["artificial intelligence" early history 1950-1990]',
+      'Get modern developments. #E2 = Library["artificial intelligence" development 1990-2020]',
+      'Get current state. #E3 = Library["artificial intelligence" current state 2020-2024]',
+      'Get impact analysis. #E4 = Library["artificial intelligence" impact society OR economy]',
+      'Get future predictions. #E5 = Library["artificial intelligence" future trends OR predictions]',
+      'Create timeline. #E6 = LLM[Create comprehensive AI evolution timeline and analysis using (#E1) (#E2) (#E3) (#E4) (#E5)]',
+    ],
+  },
+
+  /*
+   * Complex, multi-tool examples
+   * Examples demonstrating usage of multiple tools together
+   */
+
+  {
+    task: 'Analyze recent technological trends and their market impact',
+    required_tools: ['RecentMemory', 'Library', 'LLM', 'Tavily'],
+    plan_steps: [
+      'Get historical context. #E1 = RecentMemory[{"limit": 10}]',
+      'Get market data. #E2 = Library["technology trends" recent market analysis]',
+      'Verify trends. #E3 = Tavily[latest technology market trends]',
+      'Get adoption stats. #E4 = Library["emerging technology" adoption statistics]',
+      'Create analysis. #E5 = LLM[Analyze tech trends and market impact using historical context (#E1), market data (#E2), verified trends (#E3), and adoption metrics (#E4)]',
+    ],
+  },
+  {
+    task: 'Research and summarize latest developments in quantum computing',
+    required_tools: ['Library', 'LLM', 'RecentMemory', 'Tavily'],
+    plan_steps: [
+      'Get previous research. #E1 = RecentMemory[{"limit": 15}]',
+      'Get quantum basics. #E2 = Library["quantum computing" fundamentals explanation]',
+      'Get recent advances. #E3 = Library["quantum computing" recent breakthroughs]',
+      'Verify breakthroughs. #E4 = Tavily[latest quantum computing breakthroughs]',
+      'Get applications. #E5 = Library["quantum computing" practical applications]',
+      'Create summary. #E6 = LLM[Create comprehensive quantum computing summary incorporating previous research (#E1), fundamentals (#E2), verified advances (#E3, #E4), and applications (#E5)]',
+    ],
+  },
+  {
+    task: 'Analyze climate change impacts and mitigation strategies',
+    required_tools: ['Library', 'LLM', 'RecentMemory', 'Tavily'],
+    plan_steps: [
+      'Get historical data. #E1 = Library["climate change" historical data trends]',
+      'Get recent studies. #E2 = RecentMemory[{"limit": 5}]',
+      'Get current impacts. #E3 = Tavily[latest climate change impacts and evidence]',
+      'Get solutions. #E4 = Library["climate change" mitigation strategies]',
+      'Get effectiveness. #E5 = Library["climate change" solution effectiveness data]',
+      'Create report. #E6 = LLM[Create comprehensive climate analysis using historical data (#E1), recent studies (#E2), current impacts (#E3), and solution analysis (#E4, #E5)]',
+    ],
+  },
+  {
+    task: 'Research the best treatment options for migraines',
+    required_tools: ['Library', 'Tavily', 'LLM'],
+    plan_steps: [
+      'Search for medical information. #E1 = Library["migraine treatment" clinical guidelines]',
+      'Verify with latest research. #E2 = Tavily[latest migraine treatment research clinical trials]',
+      'Check for contradictions. #E3 = LLM[Identify any contradictions between (#E1) and (#E2)]',
+      'Get additional evidence. #E4 = Tavily[Resolve any contradictions identified in (#E3)]',
+      'Create treatment overview. #E5 = LLM[Create comprehensive, evidence-based treatment overview reconciling (#E1), (#E2), and if needed (#E4)]',
+    ],
+  },
+  {
+    task: 'Analyze cybersecurity threats and defense strategies',
+    required_tools: ['Library', 'RecentMemory', 'LLM', 'Tavily'],
+    plan_steps: [
+      'Get threat landscape. #E1 = Library["cybersecurity threats" current landscape]',
+      'Get recent attacks. #E2 = Tavily[major recent cybersecurity attacks and breaches]',
+      'Get incident history. #E3 = RecentMemory[{"limit": 20}]',
+      'Get defense methods. #E4 = Library["cybersecurity" defense strategies best practices]',
+      'Get emerging threats. #E5 = Library["cybersecurity threats" emerging trends predictions]',
+      'Create framework. #E6 = LLM[Develop comprehensive cybersecurity framework using threat landscape (#E1), recent attacks (#E2), incident history (#E3), defense strategies (#E4), and emerging threats (#E5)]',
+    ],
+  },
+];
+</file>
+
+<file path="src/rewoo/tools/memory_by_keyword.tool.ts">
+// ~/src/ReWOO/tools/memory_by_keyword.tool.ts
+
+import { AiGenerate, type AiConfig } from '../../core';
+import { PostgresDatabase } from '../../core/db/postgres';
+
+import type { ReWooTool } from '../types';
+
+export class MemoryByKeywordTool implements ReWooTool {
+  name = 'MemoryByKeyword';
+  description =
+    'Retrieves memories related to the given query using semantic or keyword search.';
+  private ai: AiGenerate;
+  private db: PostgresDatabase;
+
+  constructor(ai_config: AiConfig) {
+    this.ai = new AiGenerate(ai_config);
+    this.db = new PostgresDatabase();
+    this.db.init().catch(console.error);
+  }
+
+  async execute(args: string): Promise<string> {
+    try {
+      // Split terms and clean them
+      const terms = args.split(',').map((term) => term.trim());
+
+      // Get embeddings for each term
+      const embeddings = await Promise.all(
+        terms.map((term) => this.ai.get_embedding(term))
+      );
+
+      // Combine results from all terms
+      const results = new Map();
+
+      for (const embedding of embeddings) {
+        const { rows } = await this.db.pool.query(
+          `SELECT id, session_id, task, solution, metadata, 
+           (embedding <=> $1) AS similarity
+           FROM solutions
+           WHERE (embedding <=> $1) < 2
+           ORDER BY similarity ASC
+           LIMIT 5`,
+          [`[${embedding.join(',')}]`]
+        );
+
+        // Merge results, keeping best similarity score
+        for (const row of rows) {
+          const existing = results.get(row.id);
+          if (!existing || existing.similarity > row.similarity) {
+            results.set(row.id, row);
+          }
+        }
+      }
+
+      if (results.size === 0) {
+        return 'No relevant memories found.';
+      }
+
+      return Array.from(results.values())
+        .sort((a, b) => a.similarity - b.similarity)
+        .slice(0, 5)
+        .map(
+          (r) =>
+            `### Memory (Similarity: ${(1 - r.similarity).toFixed(2)})\n\n` +
+            `**Task:** ${r.task}\n\n` +
+            `**Solution:**\n${r.solution}\n\n` +
+            `**Session:** ${r.session_id}`
+        )
+        .join('\n\n---\n\n');
+    } catch (error) {
+      console.error('Error searching memories:', error);
+      return `Error searching memories: ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    await this.db.cleanup();
+  }
+}
+</file>
+
+<file path="src/rewoo/tools/recent_memory.tool.ts">
+// ~/src/ReWOO/tools/recent_memory.tool.ts
+
+import { z } from 'zod';
+import { PostgresDatabase } from '../../core/db/postgres';
+
+import type { ReWooTool } from '../types';
+
+const memory_params_schema = z
+  .object({
+    from_date: z.string().datetime().optional(),
+    to_date: z.string().datetime().optional(),
+  })
+  .strict();
+
+type MemoryParams = z.infer<typeof memory_params_schema>;
+
+export class RecentMemoryTool implements ReWooTool {
+  private static readonly MAX_LIMIT = 5;
+
+  name = 'RecentMemory';
+  description =
+    'Retrieves recent memories, optionally filtered by a date range.';
+
+  private db: PostgresDatabase;
+
+  constructor() {
+    this.db = new PostgresDatabase();
+    this.db.init().catch(console.error);
+  }
+
+  async execute(args: string): Promise<string> {
+    try {
+      // Parse and validate args
+      const params: MemoryParams = args
+        ? memory_params_schema.parse(JSON.parse(args))
+        : memory_params_schema.parse({});
+
+      let query = `
+        SELECT id, session_id, task, solution, metadata, created_at
+        FROM solutions
+      `;
+      const query_params: any[] = [];
+
+      if (params.from_date || params.to_date) {
+        const conditions: string[] = [];
+
+        if (params.from_date) {
+          conditions.push('created_at >= $' + (query_params.length + 1));
+          query_params.push(params.from_date);
+        }
+
+        if (params.to_date) {
+          conditions.push('created_at <= $' + (query_params.length + 1));
+          query_params.push(params.to_date);
+        }
+
+        query += ' WHERE ' + conditions.join(' AND ');
+      }
+
+      query += ' ORDER BY created_at DESC LIMIT $' + (query_params.length + 1);
+      query_params.push(RecentMemoryTool.MAX_LIMIT);
+
+      const { rows } = await this.db.pool.query(query, query_params);
+
+      if (rows.length === 0) {
+        return 'No memories found for the specified criteria.';
+      }
+
+      return rows
+        .map(
+          (r) =>
+            `### Memory from ${new Date(r.created_at).toISOString()}\n\n` +
+            `**Task:** ${r.task}\n\n` +
+            `**Solution:**\n${r.solution}`
+        )
+        .join('\n\n---\n\n');
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return `Error: Validation error: ${error.errors
+          .map((e) => e.message)
+          .join(', ')}`;
+      }
+
+      if (error instanceof SyntaxError) {
+        return 'Error: Invalid JSON format in arguments';
+      }
+
+      console.error('Error fetching memories:', error);
+      return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    await this.db.cleanup();
+  }
+}
+</file>
+
+<file path="src/rewoo/tools/llm.tool.ts">
+// ~/src/ReWOO/tools/llm.tool.ts
+
+import Handlebars from 'handlebars';
+
+import { AiGenerate, type AiConfig } from '../../core';
+
+import type { EventBus } from '../events';
+import type { ReWooTool } from '../types';
+
+// prettier-ignore
+const llm_system_prompt = Handlebars.compile(
+  `Today's date: {{today}}
+
+  You are a helpful assistant with a skills at distilling information and solving problems. 
+  
+  Rules:
+  - Answer should be clear, concise and to the point.
+  - Answer should not repeat, regurgitate or generate new data which is not analytically derived from the evidence provided.
+  - Your answer could be used as evidence for a solution to a problem or used by another LLM, so don't overburden the recipient with an excessive amount of information.
+  - Always present your answer in markdown format.
+  `
+);
+
+export class LlmTool implements ReWooTool {
+  name = 'LLM';
+  description =
+    'A pretrained LLM like yourself. Useful for general knowledge and reasoning.';
+  private ai: AiGenerate;
+
+  constructor(ai_config: AiConfig, private event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus);
+  }
+
+  async execute(args: string): Promise<string> {
+    try {
+      const result = await this.ai.get_completion([
+        {
+          role: 'system',
+          content: llm_system_prompt({ today: new Date().toISOString() }),
+        },
+        { role: 'user', content: args },
+      ]);
+
+      return result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Emit error event directly
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'llm_tool',
+      });
+
+      throw err; // Let Worker handle the error for fallback
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/ai.ts">
+// ~/src/rewoo/ai.ts
+// ReWOO-specific AI functionality
+
+import { AiGenerate, AiConfig, AiError, ContentModerationError } from '../core';
+
+export { AiConfig, AiError, ContentModerationError };
+
+export class ReWOOAi extends AiGenerate {
+  constructor(config: AiConfig) {
+    super(config, undefined, 'planner');
+  }
+}
+</file>
+
+<file path="src/rewoo/cli.ts">
+// ~/src/rewoo/cli.ts
+
+import { Subscription } from 'rxjs';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
+
+import { event_bus } from './events';
+import { format_state_as_markdown } from './helpers';
+import { MemoryService } from '../core/services';
+import { ReWOO } from './rewoo';
+
+import { CalculatorTool } from './tools/calculator.tool';
+import { LibraryTool } from './tools/library.tool';
+import { LlmTool } from './tools/llm.tool';
+import { MemoryByKeywordTool } from './tools/memory_by_keyword.tool';
+import { RecentMemoryTool } from './tools/recent_memory.tool';
+import { TavilyTool } from './tools/tavily.tool';
+
+dotenv.config();
+
+function create_cli() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const ai_config = {
+    api_key: process.env.CEREBRAS_API_KEY || '',
+    base_url: 'https://api.cerebras.ai/v1',
+    model: 'llama-3.3-70b',
+    temperature: 0.5,
+  };
+
+  const ai_embedding_config = {
+    api_key: process.env.OPENAI_API_KEY || '',
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+  };
+
+  // Initialize tools
+  const llm_tool = new LlmTool(ai_config, event_bus);
+  const tavily_tool = new TavilyTool(process.env.TAVILY_API_KEY || '');
+  const memory_by_keyword_tool = new MemoryByKeywordTool(ai_embedding_config);
+  const recent_memory_tool = new RecentMemoryTool();
+  const calculator_tool = new CalculatorTool();
+
+  const library_tool = new LibraryTool(
+    'This library contains documents about Apple and Steve Jobs. You should use this tool to search for information when asked about Apple and Steve Jobs.',
+    'be3fe717-64f1-4014-8b03-01c534aefd30'
+  );
+
+  const memory_service = new MemoryService(ai_embedding_config);
+  const subscriptions = new Subscription();
+
+  // Create ReWOO instance
+  const rewoo = new ReWOO(ai_config, [
+    library_tool,
+    llm_tool,
+    memory_by_keyword_tool,
+    recent_memory_tool,
+    tavily_tool,
+  ]);
+
+  // Subscribe to events
+  subscriptions.add(
+    event_bus.events.subscribe(async (event) => {
+      switch (event.type) {
+        case 'plan_created':
+          console.log('\n🔍 Plan created:');
+          if (event.plan.steps) {
+            event.plan.steps.forEach((step, index) => {
+              console.log(`  ${index + 1}. ${step.plan}`);
+              console.log(`     Tool: ${step.tool}[${step.args}]`);
+            });
+          }
+          break;
+
+        case 'tool_start':
+          console.log(`\n🔧 Starting tool: ${event.step.tool}`);
+          console.log(`   Args: ${event.args}`);
+          break;
+
+        case 'tool_complete':
+          console.log(`\n✅ Tool complete: ${event.step.tool}`);
+          console.log(`   Result: ${event.result}`);
+          break;
+
+        case 'solution_found':
+          console.log('\n✅ Solution found');
+          // Log session state as markdown
+          const log_dir = path.join(__dirname, 'logs');
+          const log_file = path.join(log_dir, `${rewoo.session_id}_log.md`);
+          const markdown = format_state_as_markdown(event.state);
+          await fs.promises.writeFile(log_file, markdown);
+          console.log(`📝 Session logged to: ${log_file}`);
+          break;
+
+        case 'completion':
+          console.log(`\n🤖 ${event.source} completion received`);
+          if (event.source) {
+            console.log(`   Source: ${event.source}`);
+          }
+          if (event.completion.usage) {
+            console.log('   Token Usage:');
+            console.log(`     Prompt: ${event.completion.usage.prompt_tokens}`);
+            console.log(
+              `     Completion: ${event.completion.usage.completion_tokens}`
+            );
+            console.log(`     Total: ${event.completion.usage.total_tokens}`);
+          }
+          break;
+
+        case 'error':
+          console.error('\n❌ Error:', event.error.message);
+          if (event.context) {
+            console.error('   Context:', event.context);
+          }
+          if (event.step) {
+            console.error('   Step:', event.step.tool);
+          }
+          break;
+
+        case 'retry':
+          console.log(
+            `\n🔄 Retry attempt ${event.attempt} (backoff: ${event.backoff_ms}ms)`
+          );
+          console.error('   Error:', event.error.message);
+          break;
+
+        case 'info':
+          console.log('\nℹ️ ', event.message);
+          break;
+      }
+    })
+  );
+
+  console.log('🚀 ReWOO CLI Started - Enter a task or type "q" to quit');
+  console.log(`📌 Session ID: ${rewoo.session_id}`);
+
+  function prompt_user() {
+    rl.question('\n📝 Enter your task: ', async (task) => {
+      if (task.toLowerCase() === 'q') {
+        await memory_service.cleanup();
+        subscriptions.unsubscribe();
+        rl.close();
+        return;
+      }
+
+      // Skip empty tasks and re-prompt
+      if (!task.trim()) {
+        console.log('❌ Task cannot be empty. Please try again.');
+        prompt_user();
+        return;
+      }
+
+      try {
+        console.log(`\n⏳ Processing task: "${task}"`);
+        const result = await rewoo.process(task);
+
+        console.log('\n📊 Result:');
+        console.log(result.result);
+
+        // Store the solution
+        if (result.result) {
+          await memory_service.store_solution(
+            rewoo.session_id,
+            task,
+            result.result,
+            {
+              steps_count: result.steps?.length || 0,
+              errors: result.errors?.length || 0,
+            }
+          );
+        }
+
+        prompt_user();
+      } catch (error) {
+        console.error('❌ Error:', error);
+        prompt_user();
+      }
+    });
+  }
+
+  prompt_user();
+
+  // Handle process termination
+  process.on('SIGINT', async () => {
+    console.log('\nExiting...');
+    await memory_service.cleanup();
+    subscriptions.unsubscribe();
+    process.exit(0);
+  });
+}
+
+if (require.main === module) {
+  create_cli();
+}
+
+export { create_cli };
+</file>
+
+<file path="src/rewoo/planner.ts">
+// ~/src/rewoo/planner.ts
+
+import Handlebars from 'handlebars';
+
+import { AiGenerate, type AiConfig } from '../core';
+import { examples } from './planner.examples';
+
+import type { EventBus } from './events';
+import type { ReWooPlanExample, ReWooState, ReWooTool } from './types';
+
+const planner_system_prompt = `You are an expert planner that breaks tasks into sequential steps.`;
+
+// prettier-ignore
+const planner_user_template = Handlebars.compile(
+`Today's date: {{today}}
+
+Create a sequential plan of 1-5 steps to solve the given task. Each step must follow this format exactly:
+Plan: <description> #E<number> = <tool>[<args>]
+
+Rules:
+
+1. Create exactly ONE plan - do not revise or provide alternatives
+2. Each step must have exactly one #E variable
+3. Number steps sequentially starting at #E1
+4. Each step must use an available tool
+5. Later steps can reference earlier #E variables in their args
+6. Plans should be a maximum of 5 steps
+
+{{{tools}}}
+
+Describe your plans with rich details. Each Plan must be followed by only one #E.
+
+Begin!
+
+Task: {{{task}}}`
+);
+
+// prettier-ignore
+const tools_template = Handlebars.compile(
+`Available tools:
+
+{{#each tools}}
+{{name}}: {{description}}
+{{/each}}
+
+{{#if examples.length}}
+Examples:
+
+{{#each examples}}
+Task: {{this.task}}
+{{#each this.plan_steps}}
+Plan: {{{this}}}
+{{/each}}
+
+{{/each}}
+{{/if}}`
+);
+
+export class PlannerAgent {
+  private ai: AiGenerate;
+  private tools: ReWooTool[];
+  private event_bus: EventBus;
+
+  private readonly regex_pattern =
+    /Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]/g;
+
+  constructor(ai_config: AiConfig, tools: ReWooTool[], event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus, 'planner');
+    this.event_bus = event_bus;
+    this.tools = tools;
+  }
+
+  // Function to filter planner examples based on available tools
+  private get_compatible_examples(
+    tool_names: string[],
+    examples: ReWooPlanExample[]
+  ): ReWooPlanExample[] {
+    return examples.filter((example) =>
+      example.required_tools.every((tool) => tool_names.includes(tool))
+    );
+  }
+
+  // Function to build planner examples prompt with filtered examples
+  private build_planner_examples(
+    available_tools: ReWooTool[],
+    examples: ReWooPlanExample[]
+  ): string {
+    const compatible_examples = this.get_compatible_examples(
+      available_tools.map((tool) => tool.name),
+      examples
+    );
+
+    return tools_template({
+      tools: available_tools,
+      examples: compatible_examples,
+    });
+  }
+
+  private create_system_prompt(): string {
+    return planner_system_prompt;
+  }
+
+  private create_user_prompt(task: string): string {
+    return planner_user_template({
+      tools: this.build_planner_examples(this.tools, examples),
+      today: new Date().toLocaleDateString('en-GB'),
+      task,
+    });
+  }
+
+  async create_plan(task: string): Promise<Partial<ReWooState>> {
+    try {
+      // Emit planning start event
+      this.event_bus.emit({
+        type: 'tool_start',
+        step: {
+          plan: 'Creating execution plan',
+          variable: 'plan',
+          tool: 'planner',
+          args: task,
+        },
+        args: task,
+      });
+
+      const system_message = this.create_system_prompt();
+      const user_message = this.create_user_prompt(task);
+
+      // Get the plan from the AI
+      const result = await this.ai.get_completion([
+        { role: 'system', content: system_message },
+        { role: 'user', content: user_message },
+      ]);
+
+      // Parse the plan using regex
+      const matches = Array.from(result.matchAll(this.regex_pattern));
+      let plan_result: Partial<ReWooState>;
+
+      if (matches.length === 0) {
+        // Fallback to ensure at least one step
+        plan_result = {
+          plan_string: result,
+          steps: [
+            {
+              plan: 'Get information about the topic',
+              variable: '#E1',
+              tool: 'LLM',
+              args: task,
+            },
+          ],
+        };
+
+        // Emit fallback plan event
+        this.event_bus.emit({
+          type: 'tool_complete',
+          step: {
+            plan: 'Creating execution plan',
+            variable: 'plan',
+            tool: 'planner',
+            args: task,
+          },
+          result: 'Created fallback plan',
+        });
+      } else {
+        const steps = matches.map((match) => ({
+          plan: match[1].trim(),
+          variable: match[2].trim(),
+          tool: match[3].trim(),
+          args: match[4].trim(),
+        }));
+
+        plan_result = {
+          plan_string: result,
+          steps,
+        };
+
+        // Emit plan created event
+        this.event_bus.emit({
+          type: 'tool_complete',
+          step: {
+            plan: 'Creating execution plan',
+            variable: 'plan',
+            tool: 'planner',
+            args: task,
+          },
+          result: `Created plan with ${steps.length} steps`,
+        });
+      }
+
+      // Emit plan_created event with the plan data
+      this.event_bus.emit({
+        type: 'plan_created',
+        plan: plan_result,
+      });
+
+      return plan_result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'plan_creation',
+      });
+
+      // Return a minimal fallback plan
+      const fallback_plan = {
+        plan_string: 'Error creating plan, using fallback',
+        steps: [
+          {
+            plan: 'Get information about the topic',
+            variable: '#E1',
+            tool: 'LLM',
+            args: task,
+          },
+        ],
+      };
+
+      // Also emit the fallback plan
+      this.event_bus.emit({
+        type: 'plan_created',
+        plan: fallback_plan,
+      });
+
+      return fallback_plan;
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/solver.ts">
+// ~/src/rewoo/solver.ts
+
+import Handlebars from 'handlebars';
+
+import { AiGenerate, type AiConfig } from '../core';
+
+import type { EventBus } from './events';
+import type { ReWooState } from './types';
+
+// Template for the system prompt
+// prettier-ignore
+const solver_system_prompt = Handlebars.compile(
+`Today's date: {{today}}
+
+You are an expert at solving tasks using provided evidence.
+
+Your role is to analyze the evidence and provide a clear, accurate solution.
+
+Solutions must follow this format exactly:
+
+<evidence>
+**#E1:** <summary of evidence for step #E1>
+**#E2:** <summary of evidence for step #E2>
+...
+</evidence>
+
+<solution>
+A clear and concise solution to the task.
+</solution>
+
+Example 1 (Photosynthesis):
+<evidence>
+**#E1:** Overview of photosynthesis process including light absorption, water splitting, and glucose production
+**#E2:** Details about chloroplasts, thylakoids, and other cellular structures involved
+</evidence>
+
+<solution>
+Photosynthesis is the process by which plants convert light energy into chemical energy. The process occurs in chloroplasts and involves capturing sunlight, splitting water molecules, and producing glucose and oxygen.
+</solution>
+
+Example 2 (Quantum Computing):
+<evidence>
+**#E1:** Previous research on quantum computing fundamentals
+**#E2:** Recent quantum computing breakthroughs and advances
+**#E3:** Current practical applications in cryptography and optimization
+</evidence>
+
+<solution>
+Quantum computing leverages quantum mechanical properties to perform certain computations exponentially faster than classical computers. Recent advances have improved qubit stability and error correction, with practical applications emerging in cryptography and optimization problems.
+</solution>
+
+Example 3 (Climate Change):
+<evidence>
+**#E1:** Historical climate data showing temperature trends
+**#E2:** Recent studies on current climate impacts
+**#E3:** Analysis of mitigation strategies and their effectiveness
+</evidence>
+
+<solution>
+Climate change is causing measurable global temperature increases with widespread environmental impacts. Evidence shows accelerating effects, but various mitigation strategies like renewable energy adoption and carbon capture show promise in reducing future impacts.
+</solution>`
+);
+
+// Template for the user prompt
+// prettier-ignore
+const solver_user_template = Handlebars.compile(
+`Solve the following task. To help you solve the task, we have made step-by-step Plans and retrieved corresponding Evidence for each Plan. Use them with caution since long evidence might contain irrelevant information. You will need to sift through the evidence to find the most relevant information to solve the problem.
+
+{{plan_with_evidence}}
+
+Now solve the task or problem according to the provided Evidence above. If evidence is missing or incomplete, use your best judgment but be transparent about any assumptions. If it's impossible to solve the task from the evidence provided, then say so.
+
+Task: {{task}}
+
+Start by briefly summarizing the key information from each piece of evidence. Then provide your final answer.`
+);
+
+export class SolverAgent {
+  private ai: AiGenerate;
+  private event_bus: EventBus;
+
+  constructor(ai_config: AiConfig, event_bus: EventBus) {
+    this.ai = new AiGenerate(ai_config, event_bus, 'solver');
+    this.event_bus = event_bus;
+  }
+
+  private create_system_prompt(): string {
+    return solver_system_prompt({
+      today: new Date().toLocaleDateString('en-GB'),
+    });
+  }
+
+  private create_user_prompt(plan_with_evidence: string, task: string): string {
+    return solver_user_template({
+      plan_with_evidence,
+      task,
+    });
+  }
+
+  async solve(state: ReWooState): Promise<string> {
+    try {
+      // Emit solver start event
+      this.event_bus.emit({
+        type: 'tool_start',
+        step: {
+          plan: 'Solving task with collected evidence',
+          variable: 'solution',
+          tool: 'solver',
+          args: state.task,
+        },
+        args: state.task,
+      });
+
+      // Format the plan and evidence for better visibility
+      let plan_with_evidence = '';
+
+      if (state.steps && state.results) {
+        for (const step of state.steps) {
+          const result = state.results[step.variable] || '(No result)';
+          const result_summary =
+            result.length > 300
+              ? result.substring(0, 300) + '... (truncated)'
+              : result;
+
+          plan_with_evidence += `Step: ${step.plan}\n`;
+          plan_with_evidence += `Tool: ${step.tool}[${step.args}]\n`;
+          plan_with_evidence += `**Evidence ${step.variable}:**\n${result_summary}\n\n`;
+        }
+      } else if (state.plan_string) {
+        plan_with_evidence = state.plan_string;
+      }
+
+      const system_prompt = this.create_system_prompt();
+      const user_prompt = this.create_user_prompt(
+        plan_with_evidence,
+        state.task
+      );
+
+      const result = await this.ai.get_completion([
+        { role: 'system', content: system_prompt },
+        { role: 'user', content: user_prompt },
+      ]);
+
+      // Emit solver complete event
+      this.event_bus.emit({
+        type: 'tool_complete',
+        step: {
+          plan: 'Solving task with collected evidence',
+          variable: 'solution',
+          tool: 'solver',
+          args: state.task,
+        },
+        result: 'Generated solution',
+      });
+
+      // Emit solution found event
+      this.event_bus.emit({
+        type: 'solution_found',
+        solution: result,
+        state: {
+          ...state,
+          result,
+        },
+      });
+
+      return result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'solution_generation',
+      });
+
+      throw err;
+    }
+  }
+}
+</file>
+
+<file path="src/rewoo/types.ts">
+// ~/src/rewoo/types.ts
+// ReWOO-specific types
+
+import { z } from 'zod';
+import type { ChatCompletion } from 'openai/resources/chat';
+
+// Step definition schema
+export const ReWooStepSchema = z.object({
+  plan: z.string(),
+  variable: z.string().regex(/^#E\d+$/),
+  tool: z.string(),
+  args: z.string(),
+});
+
+export type ReWooStep = z.infer<typeof ReWooStepSchema>;
+
+// State schema for tracking execution
+export const ReWooStateSchema = z.object({
+  session_id: z.string(),
+  task: z.string(),
+  plan_string: z.string().optional(),
+  steps: z.array(ReWooStepSchema).optional(),
+  results: z.record(z.string()).optional(),
+  result: z.string().optional(),
+  timestamp: z.number().optional(),
+  errors: z.array(z.string()).optional(),
+  token_usage: z
+    .array(
+      z.object({
+        source: z.enum(['planner', 'solver', 'llm']),
+        prompt_tokens: z.number(),
+        completion_tokens: z.number(),
+        total_tokens: z.number(),
+      })
+    )
+    .optional(),
+});
+
+export type ReWooState = z.infer<typeof ReWooStateSchema>;
+
+// Tool interface for all tools to implement
+export interface ReWooTool {
+  name: string;
+  description: string;
+  execute(args: string): Promise<string>;
+}
+
+// Base completion type used throughout the application
+export type ReWooCompletion = ChatCompletion & {
+  _request_id?: string | null;
+};
+
+// EvidenceRecord is a record of evidence for a session
+export interface ReWooEvidenceRecord {
+  session_id: string;
+  evidence_id: string; // E1, E2, etc.
+  content: string;
+  created_at: number;
+  step_variable: string;
+}
+
+export interface ReWooPlanExample {
+  task: string;
+  required_tools: string[];
+  plan_steps: string[];
+}
+</file>
+
+<file path="src/rewoo/worker.ts">
+// ~/src/rewoo/worker.ts
+
+import { AiGenerate, type AiConfig } from '../core';
+
+import type { EventBus } from './events';
+import type { ReWooStep, ReWooTool } from './types';
+
+export class Worker {
+  private tools: Map<string, ReWooTool>;
+  private fallback_ai: AiGenerate;
+  private event_bus: EventBus;
+
+  constructor(ai_config: AiConfig, tools: ReWooTool[], event_bus: EventBus) {
+    this.fallback_ai = new AiGenerate(ai_config, event_bus);
+    this.event_bus = event_bus;
+
+    // Initialize tools map
+    this.tools = new Map(tools.map((tool) => [tool.name, tool]));
+  }
+
+  async cleanup(): Promise<void> {
+    // Clear tools map
+    this.tools.clear();
+
+    // Cleanup any tools that have cleanup methods
+    for (const tool of this.tools.values()) {
+      if ('cleanup' in tool && typeof tool.cleanup === 'function') {
+        await tool.cleanup();
+      }
+    }
+  }
+
+  async execute_step(
+    step: ReWooStep,
+    results: Record<string, string> = {}
+  ): Promise<string> {
+    // Process variable substitutions in the args
+    let processed_args = step.args;
+    for (const [key, value] of Object.entries(results)) {
+      processed_args = processed_args.replace(key, value);
+    }
+
+    // Get the tool and execute it
+    const tool = this.tools.get(step.tool);
+
+    // Emit tool start event
+    this.event_bus.emit({
+      type: 'tool_start',
+      step,
+      args: processed_args,
+    });
+
+    try {
+      let result: string;
+
+      if (!tool) {
+        console.warn(`Tool "${step.tool}" not found, using fallback AI`);
+        result = await this.execute_fallback(step.tool, processed_args);
+      } else {
+        result = await tool.execute(processed_args);
+      }
+
+      // Emit tool complete event
+      this.event_bus.emit({
+        type: 'tool_complete',
+        step,
+        result,
+      });
+
+      return result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Emit error event
+      this.event_bus.emit({
+        type: 'error',
+        error: err,
+        context: 'tool_execution',
+        step,
+      });
+
+      // Use fallback on error
+      return this.execute_fallback(step.tool, processed_args);
+    }
+  }
+
+  private async execute_fallback(
+    tool_name: string,
+    args: string
+  ): Promise<string> {
+    const content = `The tool "${tool_name}" failed to execute with args: "${args}". 
+    Please provide the best possible answer using your knowledge.`;
+
+    // Emit fallback start event
+    this.event_bus.emit({
+      type: 'info',
+      message: `Using fallback for tool "${tool_name}"`,
+    });
+
+    const result = await this.fallback_ai.get_completion([
+      { role: 'user', content },
+    ]);
+
+    // The fallback AI will emit its own completion event via the event_bus
+
+    return `(Fallback) ${result}`;
+  }
+}
+</file>
+
+<file path="src/rewoo/helpers.ts">
+// ~/src/rewoo/helpers.ts
+
+import { ReWooState } from './types';
+
+// function escape_markdown(text: string): string {
+//   // Escape special markdown characters while preserving line breaks
+//   return text
+//     .split('\n')
+//     .map((line) => line.replace(/[_*`[\]()~>#+=|{}.!-]/g, '\\$&'))
+//     .join('\n');
+// }
+
+function escape_block(text: string): string {
+  // Escape backticks and ensure no ``` sequences
+  return text.replace(/`/g, '\\`').replace(/```/g, '\\`\\`\\`');
+}
+
+function format_header(state: ReWooState): string[] {
+  const md: string[] = [];
+  md.push(`# ReWOO Session Log\n`);
+  md.push(`**Session ID:** \`${escape_block(state.session_id)}\`\n`);
+  md.push(
+    `**Timestamp:** ${new Date(state.timestamp || Date.now()).toISOString()}\n`
+  );
+  md.push(`**Task:** ${escape_block(state.task)}\n`);
+  return md;
+}
+
+function format_plan(plan_string: string): string[] {
+  if (!plan_string) return [];
+  return [
+    `\n## Plan\n\n${plan_string
+      .split('\n')
+      .map((line) => line.trim())
+      .join('  \n')}\n`,
+  ];
+}
+
+function format_steps(steps: ReWooState['steps']): string[] {
+  if (!steps?.length) return [];
+
+  const md: string[] = [`\n## Execution Steps\n`];
+  steps.forEach((step, index) => {
+    md.push(`\n### Step ${index + 1}\n`);
+    md.push(`- **Tool:** \`${escape_block(step.tool)}\``);
+    md.push(`- **Variable:** \`${escape_block(step.variable)}\``);
+    md.push(`- **Plan:** ${escape_block(step.plan)}`);
+    if (step.args) {
+      md.push(`- **Arguments:** \`${escape_block(step.args)}\``);
+    }
+  });
+  return md;
+}
+
+function format_results(results: ReWooState['results']): string[] {
+  if (!results) return [];
+
+  const md: string[] = [`\n## Results\n`];
+  Object.entries(results).forEach(([variable, result]) => {
+    md.push(`\n### ${escape_block(variable)}\n`);
+    const formatted_result = result
+      .split('\n')
+      .map((line) =>
+        line.includes('```') ? line.replace(/```/g, '\\`\\`\\`') : line
+      )
+      .join('\n');
+    md.push(`${formatted_result}\n`);
+  });
+  return md;
+}
+
+function format_final_result(result: string): string[] {
+  if (!result) return [];
+
+  const md: string[] = [`\n## Final Result\n\n`];
+  const evidence_match = result.match(/<evidence>([\s\S]*?)<\/evidence>/);
+  const solution_match = result.match(/<solution>([\s\S]*?)<\/solution>/);
+
+  if (evidence_match) {
+    md.push(`### Evidence\n\n${evidence_match[1].trim()}\n`);
+  }
+  if (solution_match) {
+    md.push(`### Solution\n\n${solution_match[1].trim()}\n`);
+  }
+  return md;
+}
+
+function format_errors(errors: string[]): string[] {
+  if (!errors?.length) return [];
+
+  const md: string[] = [`\n## Errors\n`];
+  errors.forEach((error, index) => {
+    md.push(`\n### Error ${index + 1}\n`);
+    md.push(`\`\`\`\n${escape_block(error)}\n\`\`\`\n`);
+  });
+  return md;
+}
+
+function format_token_usage(token_usage: ReWooState['token_usage']): string[] {
+  if (!token_usage?.length) return [];
+
+  const md: string[] = [
+    `\n## Token Usage\n`,
+    `| Source | Prompt | Completion | Total |`,
+    `|--------|---------|------------|--------|`,
+  ];
+
+  token_usage.forEach((usage) => {
+    md.push(
+      `| ${usage.source} | ${usage.prompt_tokens} | ${usage.completion_tokens} | ${usage.total_tokens} |`
+    );
+  });
+
+  const totals = token_usage.reduce(
+    (acc, curr) => ({
+      prompt_tokens: acc.prompt_tokens + curr.prompt_tokens,
+      completion_tokens: acc.completion_tokens + curr.completion_tokens,
+      total_tokens: acc.prompt_tokens + acc.completion_tokens,
+    }),
+    { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  );
+
+  md.push(
+    `| **Total** | ${totals.prompt_tokens} | ${totals.completion_tokens} | ${
+      totals.prompt_tokens + totals.completion_tokens
+    } |`
+  );
+
+  return md;
+}
+
+export function format_state_as_markdown(state: ReWooState): string {
+  return [
+    ...format_header(state),
+    ...format_plan(state.plan_string ?? ''),
+    ...format_steps(state.steps ?? []),
+    ...format_results(state.results ?? {}),
+    ...format_final_result(state.result ?? ''),
+    ...format_errors(state.errors ?? []),
+    ...format_token_usage(state.token_usage ?? []),
+  ].join('\n');
+}
+</file>
+
+<file path="src/rewoo/rewoo.ts">
+// ~/src/rewoo/rewoo.ts
+//
+// ReWOO (Reasoning WithOut Observation) - A reactive AI workflow engine
+//
+// Core Components:
+// - PlannerAgent: Breaks down tasks into executable steps
+// - Worker: Executes individual steps using provided tools
+// - SolverAgent: Synthesizes results into final solutions
+// - EventBus: Manages reactive event flow between components
+//
+// Main Dependencies:
+// - RxJS: For reactive event handling and state management
+// - OpenAI: For AI-powered planning and execution
+//
+// Architecture:
+// - Built on RxJS Observables for reactive event handling
+// - Two-layer event system:
+//   1. Low-level tool events (tool_start, tool_complete, error)
+//   2. High-level process events (plan, solve)
+// - Event filtering and subscription via RxJS operators
+// - Shared event stream for multiple subscribers
+
+import { Subscription } from 'rxjs';
+import { v4 as uuid } from 'uuid';
+
+import { event_bus } from './events';
+import { PlannerAgent } from './planner';
+import { SolverAgent } from './solver';
+import { Worker } from './worker';
+
+import type { AiConfig } from './ai';
+import type { ReWooEvidenceRecord, ReWooState } from './types';
+import type { ReWooTool } from './types';
+
+/**
+ * ReWOO
+ *
+ * Manages the execution of AI-powered workflows through a three-stage process:
+ * 1. Planning: Breaks down tasks into executable steps
+ * 2. Execution: Runs each step using provided tools
+ * 3. Solving: Synthesizes results into final solutions
+ *
+ * Features:
+ * - Reactive event handling via RxJS
+ * - Token usage tracking
+ * - Error handling and recovery
+ * - Session-based state management
+ * - Evidence record generation
+ */
+export class ReWOO {
+  private planner: PlannerAgent;
+  private worker: Worker;
+  private solver: SolverAgent;
+  private subscriptions = new Subscription();
+  private state: ReWooState = { session_id: uuid(), task: '' };
+  private tools: ReWooTool[] = [];
+
+  /**
+   * Creates a new ReWOO instance
+   * @param ai_config - Configuration for AI models and parameters
+   * @param tools - Array of tools available for task execution
+   */
+  constructor(ai_config: AiConfig, tools: ReWooTool[]) {
+    this.planner = new PlannerAgent(ai_config, tools, event_bus);
+    this.worker = new Worker(ai_config, tools, event_bus);
+    this.solver = new SolverAgent(ai_config, event_bus);
+    this.tools = tools;
+
+    // Subscribe to completion events to track token usage
+    this.subscriptions.add(
+      event_bus.onCompletion().subscribe((event) => {
+        // Track token usage
+        if (event.completion.usage) {
+          if (!this.state.token_usage) this.state.token_usage = [];
+          this.state.token_usage.push({
+            source: event.source,
+            prompt_tokens: event.completion.usage.prompt_tokens,
+            completion_tokens: event.completion.usage.completion_tokens,
+            total_tokens: event.completion.usage.total_tokens,
+          });
+        }
+      })
+    );
+  }
+
+  /**
+   * Gets the current session ID
+   */
+  get session_id(): string {
+    return this.state.session_id;
+  }
+
+  /**
+   * Gets a copy of the current state
+   */
+  get current_state(): ReWooState {
+    return { ...this.state };
+  }
+
+  /**
+   * Gets evidence records for the current session
+   * Maps internal state to evidence table schema
+   */
+  get evidence_records(): ReWooEvidenceRecord[] {
+    return Object.entries(this.state.results || {}).map(
+      ([variable, content], idx) => ({
+        session_id: this.state.session_id,
+        evidence_id: `E${idx + 1}`,
+        content,
+        created_at: this.state.timestamp || Date.now(),
+        step_variable: variable,
+      })
+    );
+  }
+
+  /**
+   * Processes a task through the ReWOO workflow
+   *
+   * Flow:
+   * 1. Creates execution plan
+   * 2. Executes each step
+   * 3. Synthesizes final solution
+   *
+   * @param task - The task to process
+   * @returns Promise<State> - Final state with results
+   */
+  async process(task: string): Promise<ReWooState> {
+    this.state = {
+      session_id: this.state.session_id,
+      task,
+      timestamp: Date.now(),
+      errors: [],
+    };
+
+    try {
+      const plan_result = await this.planner.create_plan(task);
+      this.state = { ...this.state, ...plan_result };
+
+      if (this.state.steps && this.state.steps.length > 0) {
+        this.state.results = {};
+
+        for (const step of this.state.steps) {
+          try {
+            const result = await this.worker.execute_step(
+              step,
+              this.state.results
+            );
+            this.state.results[step.variable] = result;
+          } catch (error) {
+            const err =
+              error instanceof Error ? error : new Error(String(error));
+            this.state.results[step.variable] = `Error: ${err.message}`;
+          }
+        }
+      }
+
+      const solution = await this.solver.solve(this.state);
+      this.state.result = solution;
+
+      return this.state;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      if (!this.state.result) {
+        try {
+          const fallback = await this.solver.solve(this.state);
+          this.state.result = fallback;
+        } catch (solveError) {
+          this.state.result = 'Unable to complete the task due to errors.';
+        }
+      }
+
+      return this.state;
+    }
+  }
+
+  /**
+   * Cleans up resources and subscriptions
+   */
+  async cleanup(): Promise<void> {
+    // Unsubscribe from all events
+    this.subscriptions.unsubscribe();
+
+    // Clear tools array
+    this.tools = [];
+  }
+}
+</file>
+
+</files>

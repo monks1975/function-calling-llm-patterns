@@ -1,0 +1,88 @@
+.
+├── docs
+│   └── event-system.md
+├── package-lock.json
+├── package.json
+├── README.md
+├── src
+│   ├── core
+│   │   ├── ai
+│   │   │   ├── ai.ts
+│   │   │   ├── errors.ts
+│   │   │   ├── index.ts
+│   │   │   └── moderator.ts
+│   │   ├── db
+│   │   │   ├── index.ts
+│   │   │   └── postgres.ts
+│   │   ├── index.ts
+│   │   ├── services
+│   │   │   ├── index.ts
+│   │   │   ├── memory_service.ts
+│   │   │   └── rag.service.ts
+│   │   └── types
+│   │       ├── ai.ts
+│   │       ├── events.ts
+│   │       └── index.ts
+│   ├── react
+│   │   ├── cli.ts
+│   │   ├── docs
+│   │   │   ├── 2024.eacl-long.7.pdf
+│   │   │   └── example.log.md
+│   │   ├── errors.ts
+│   │   ├── helpers.ts
+│   │   ├── logs
+│   │   ├── message.handler.ts
+│   │   ├── react.agent.ts
+│   │   ├── react.examples.yaml
+│   │   ├── react.instructions.ts
+│   │   ├── react.schema.ts
+│   │   ├── react.singleton.ts
+│   │   ├── react.stream.ts
+│   │   ├── README.md
+│   │   ├── todo.md
+│   │   ├── tool.executor.ts
+│   │   ├── tools
+│   │   │   ├── calculator.examples.yaml
+│   │   │   ├── calculator.tool.ts
+│   │   │   ├── helpers.ts
+│   │   │   ├── rag.examples.yaml
+│   │   │   ├── rag.tool.ts
+│   │   │   ├── search.examples.yaml
+│   │   │   ├── search.tool.ts
+│   │   │   ├── setup.ts
+│   │   │   ├── thought.examples.yaml
+│   │   │   └── thought.tool.ts
+│   │   └── types.ts
+│   └── rewoo
+│       ├── ai.ts
+│       ├── cli.ts
+│       ├── docs
+│       │   ├── Let’s build ReWOO with LangGraph and Tavily _ by Minh Le Duc _ GoPenAI.pdf
+│       │   └── Reasoning without Observation.pdf
+│       ├── events.ts
+│       ├── helpers.ts
+│       ├── logs
+│       │   └── a2559f42-823f-4412-be34-0f26f83c4202_log.md
+│       ├── planner.examples.ts
+│       ├── planner.ts
+│       ├── README.md
+│       ├── rewoo.ts
+│       ├── solver.ts
+│       ├── tests
+│       │   ├── test_calculator_examples.ts
+│       │   └── test_calculator_plan.ts
+│       ├── tools
+│       │   ├── calculator.tool.ts
+│       │   ├── library.tool.ts
+│       │   ├── llm.tool.ts
+│       │   ├── memory_by_keyword.tool.ts
+│       │   ├── recent_memory.tool.ts
+│       │   └── tavily.tool.ts
+│       ├── tsconfig.json
+│       ├── types.ts
+│       └── worker.ts
+├── todo.md
+├── tsconfig.json
+└── vitest.config.ts
+
+17 directories, 69 files

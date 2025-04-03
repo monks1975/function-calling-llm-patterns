@@ -5,10 +5,11 @@
   "scripts": {
     "react-cli": "ts-node src/react/cli.ts",
     "rewoo-cli": "ts-node src/rewoo/cli.ts",
+    "docs:files": "tree . -I \"node_modules\" -I \"dist\" -I \"FILES.txt\" > FILES.txt",
+    "docs:llm": "repomix . --output docs/rewoo-code.xml --include \"src/rewoo/**/*\" && repomix . --output docs/core-code.xml --include \"src/core/**/*\" && repomix . --output docs/react-code.xml --include \"src/react/**/*\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:plan-revision": "ts-node src/PlanExecute/test_plan_revision.ts"
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",

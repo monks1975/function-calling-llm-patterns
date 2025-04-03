@@ -1,0 +1,889 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: src/core/**/*
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+src/
+  core/
+    ai/
+      ai.ts
+      errors.ts
+      index.ts
+      moderator.ts
+    db/
+      index.ts
+      postgres.ts
+    services/
+      index.ts
+      memory_service.ts
+      rag.service.ts
+    types/
+      ai.ts
+      events.ts
+      index.ts
+    index.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/core/ai/ai.ts">
+// ~/src/core/ai/ai.ts
+// Core AI generation functionality
+
+import OpenAI from 'openai';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionCreateParamsBase,
+} from 'openai/resources/chat/completions';
+import type { EventBus } from '../types/events';
+import type { AiConfig, AiCallbacks, AiName } from '../types/ai';
+import { AiError, ContentModerationError } from './errors';
+
+export class AiGenerate {
+  protected readonly openai: OpenAI;
+  protected readonly ai_config: Required<AiConfig>;
+  protected readonly name?: AiName;
+  protected abort_controller: AbortController | null = null;
+  protected messages: ChatCompletionMessageParam[] = [];
+  private event_bus?: EventBus;
+
+  constructor(config: AiConfig, event_bus?: EventBus, name?: AiName) {
+    this.openai = new OpenAI({
+      baseURL: config.base_url,
+      apiKey: config.api_key,
+    });
+    this.event_bus = event_bus;
+    this.name = name;
+
+    this.ai_config = {
+      model: config.model,
+      max_tokens: config.max_tokens ?? 8192,
+      temperature: config.temperature ?? 0.5,
+      timeout_ms: config.timeout_ms ?? 10000,
+      max_retries: config.max_retries ?? 3,
+      base_url: config.base_url ?? 'https://api.openai.com/v1',
+      api_key: config.api_key,
+    };
+  }
+
+  public async get_completion(
+    messages: ChatCompletionMessageParam[],
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
+  ): Promise<string> {
+    let attempt = 0;
+    let last_error: AiError | Error | null = null;
+
+    while (attempt < this.ai_config.max_retries) {
+      try {
+        return await this.execute_with_timeout(
+          messages,
+          response_format,
+          callbacks
+        );
+      } catch (error) {
+        if (error instanceof OpenAI.APIError) {
+          const status = error.status;
+          const headers = error.headers as Record<string, string>;
+          const errorDetails = {
+            type: error.type,
+            code: error.code,
+            param: error.param,
+            message: error.message,
+          };
+
+          if (
+            error.code === 'content_filter' ||
+            error.message.includes('content management policy') ||
+            error.message.includes('violates OpenAI') ||
+            error.message.includes('content policy') ||
+            error.message.includes('flagged') ||
+            error.message.includes('moderation')
+          ) {
+            if (this.event_bus) {
+              this.event_bus.emit({
+                type: 'error',
+                error: new ContentModerationError(
+                  error.message,
+                  attempt + 1,
+                  status,
+                  headers,
+                  errorDetails
+                ),
+                context: 'content_moderation',
+              });
+            }
+
+            throw new ContentModerationError(
+              error.message,
+              attempt + 1,
+              status,
+              headers,
+              errorDetails
+            );
+          }
+
+          last_error = new AiError(
+            error.message,
+            attempt + 1,
+            status,
+            headers,
+            errorDetails
+          );
+        } else {
+          last_error =
+            error instanceof Error ? error : new Error(String(error));
+        }
+
+        if (last_error.name === 'AbortError') {
+          if (this.event_bus) {
+            this.event_bus.emit({
+              type: 'error',
+              error: last_error,
+              context: 'request_aborted',
+            });
+          }
+          throw last_error;
+        }
+
+        if (!(await this.handle_retry(++attempt, last_error, callbacks))) {
+          break;
+        }
+      }
+    }
+
+    const final_error =
+      last_error instanceof AiError
+        ? last_error
+        : new AiError(
+            `Failed after ${this.ai_config.max_retries} attempts. Last error: ${last_error?.message}`,
+            attempt
+          );
+
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'error',
+        error: final_error,
+        context: 'max_retries_exceeded',
+      });
+    }
+
+    throw final_error;
+  }
+
+  protected async execute_with_timeout(
+    messages: ChatCompletionMessageParam[],
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
+  ): Promise<string> {
+    this.abort_controller = new AbortController();
+
+    const timeout_promise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        const error = new AiError(
+          `Request timed out after ${this.ai_config.timeout_ms}ms`
+        );
+        reject(error);
+      }, this.ai_config.timeout_ms);
+    });
+
+    try {
+      return await Promise.race([
+        this.execute(messages, response_format, callbacks),
+        timeout_promise,
+      ]);
+    } finally {
+      this.abort_controller = null;
+    }
+  }
+
+  protected async execute(
+    messages: ChatCompletionMessageParam[],
+    response_format?: ChatCompletionCreateParamsBase['response_format'],
+    callbacks?: AiCallbacks
+  ): Promise<string> {
+    const completion = await this.openai.chat.completions.create(
+      {
+        model: this.ai_config.model,
+        messages,
+        max_tokens: this.ai_config.max_tokens,
+        temperature: this.ai_config.temperature,
+        response_format: response_format,
+      },
+      {
+        signal: this.abort_controller?.signal,
+      }
+    );
+
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'completion',
+        completion,
+        source: this.name ?? 'llm',
+      });
+    }
+
+    callbacks?.onCompletion?.(completion);
+
+    return completion.choices[0]?.message?.content ?? '';
+  }
+
+  protected async handle_retry(
+    attempt: number,
+    error: Error,
+    callbacks?: AiCallbacks
+  ): Promise<boolean> {
+    if (attempt >= this.ai_config.max_retries) {
+      return false;
+    }
+
+    if (this.event_bus) {
+      this.event_bus.emit({
+        type: 'retry',
+        error,
+        context: `attempt_${attempt}`,
+      });
+    }
+
+    callbacks?.onRetry?.(attempt, error);
+
+    // Exponential backoff
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.pow(2, attempt) * 1000)
+    );
+
+    return true;
+  }
+
+  public async get_embedding(text: string): Promise<number[]> {
+    try {
+      const response = await this.openai.embeddings.create({
+        model: 'text-embedding-ada-002',
+        input: text,
+      });
+
+      return response.data[0]?.embedding ?? [];
+    } catch (error) {
+      if (error instanceof OpenAI.APIError) {
+        throw new AiError(
+          error.message,
+          undefined,
+          error.status,
+          error.headers as Record<string, string>,
+          {
+            type: error.type,
+            code: error.code,
+            param: error.param,
+          }
+        );
+      }
+      throw error;
+    }
+  }
+
+  public abort(): void {
+    this.abort_controller?.abort();
+  }
+
+  public add_message(message: ChatCompletionMessageParam): void {
+    this.messages.push(message);
+  }
+
+  public get_messages(): ChatCompletionMessageParam[] {
+    return this.messages;
+  }
+
+  public reset_messages(): void {
+    this.messages = [];
+  }
+
+  public cleanup(): void {
+    this.reset_messages();
+    this.abort();
+  }
+}
+</file>
+
+<file path="src/core/ai/errors.ts">
+// ~/src/core/ai/errors.ts
+// AI-related error classes
+
+export class AiError extends Error {
+  constructor(
+    message: string,
+    public readonly attempt?: number,
+    public readonly status?: number,
+    public readonly headers?: Record<string, string>,
+    public readonly errorDetails?: Record<string, any>
+  ) {
+    super(message);
+    this.name = 'AiError';
+  }
+}
+
+export class ContentModerationError extends AiError {
+  constructor(
+    message: string,
+    attempt?: number,
+    status?: number,
+    headers?: Record<string, string>,
+    errorDetails?: Record<string, any>
+  ) {
+    super(message, attempt, status, headers, errorDetails);
+    this.name = 'ContentModerationError';
+  }
+}
+</file>
+
+<file path="src/core/ai/index.ts">
+// ~/src/core/ai/index.ts
+// Barrel file for AI module exports
+
+export * from './ai';
+export * from './errors';
+</file>
+
+<file path="src/core/ai/moderator.ts">
+// ~/src/core/ai/moderator.ts
+
+import OpenAI from 'openai';
+
+import type { Moderation } from 'openai/resources/moderations';
+
+interface ModeratorConfig {
+  api_key: string;
+}
+
+export interface ModeratorResult {
+  flagged: boolean;
+  categories: Moderation.Categories;
+  category_scores: Moderation.CategoryScores;
+}
+
+export class Moderator {
+  private openai: OpenAI;
+
+  constructor(config: ModeratorConfig) {
+    this.openai = new OpenAI({
+      apiKey: config.api_key,
+    });
+  }
+
+  /**
+   * Moderates the given text using OpenAI's moderation API
+   * @param text The text to moderate
+   * @returns A ModerationResult object containing the moderation results
+   */
+  async moderate(text: string): Promise<ModeratorResult> {
+    try {
+      const response = await this.openai.moderations.create({
+        model: 'omni-moderation-latest',
+        input: text,
+      });
+
+      const result = response.results[0];
+
+      return {
+        flagged: result.flagged,
+        categories: result.categories,
+        category_scores: result.category_scores,
+      };
+    } catch (error) {
+      console.error('Moderation API error:', error);
+      // In case of API error, we don't block the content
+      // but we log the error and return a non-flagged result
+      return {
+        flagged: false,
+        categories: {} as Moderation.Categories,
+        category_scores: {} as Moderation.CategoryScores,
+      };
+    }
+  }
+}
+</file>
+
+<file path="src/core/db/index.ts">
+// ~/src/core/db/index.ts
+// Barrel file for database module exports
+
+export * from './postgres';
+</file>
+
+<file path="src/core/db/postgres.ts">
+// ~/src/core/db/postgres.ts
+// Generic PostgreSQL database functionality
+
+import { Pool } from 'pg';
+
+export interface PostgresConfig {
+  host?: string;
+  database?: string;
+  user?: string;
+  password?: string;
+  port?: number;
+}
+
+export class PostgresDatabase {
+  public pool: Pool;
+
+  constructor(config: PostgresConfig = {}) {
+    this.pool = new Pool({
+      host: config.host || process.env.POSTGRES_HOST || 'localhost',
+      database: config.database || process.env.POSTGRES_DB || 'rewoo',
+      user: config.user || process.env.POSTGRES_USER || 'postgres',
+      password: config.password || process.env.POSTGRES_PASSWORD || 'postgres',
+      port: config.port || parseInt(process.env.POSTGRES_PORT || '5432'),
+    });
+  }
+
+  async init(): Promise<void> {
+    try {
+      await this.pool.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+      throw error;
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    await this.pool.end();
+  }
+}
+</file>
+
+<file path="src/core/services/memory_service.ts">
+// ~/src/core/services/memory_service.ts
+
+import { v4 as uuid } from 'uuid';
+
+import { AiGenerate } from '../ai';
+import { PostgresDatabase } from '../db/postgres';
+
+import { type AiConfig } from '../types/ai';
+
+export class MemoryService {
+  private ai: AiGenerate;
+  private db: PostgresDatabase;
+
+  constructor(ai_config: AiConfig) {
+    this.ai = new AiGenerate(ai_config);
+    this.db = new PostgresDatabase();
+    this.db.init().catch(console.error);
+  }
+
+  private clean_solution_text(text: string): string {
+    return text.replace(/#E\d+|#[A-Za-z0-9_]+|\(#[A-Za-z0-9_]+\)/g, '');
+  }
+
+  async store_solution(
+    session_id: string,
+    task: string,
+    solution: string,
+    metadata: any = {}
+  ): Promise<void> {
+    try {
+      const embedding = await this.ai.get_embedding(task);
+      const cleaned_solution = this.clean_solution_text(solution);
+      const formatted_embedding = `[${embedding.join(',')}]`;
+      const solution_id = uuid();
+
+      await this.db.pool.query(
+        `INSERT INTO solutions(id, session_id, task, solution, embedding, metadata)
+         VALUES($1, $2, $3, $4, $5, $6)`,
+        [
+          solution_id,
+          session_id,
+          task,
+          cleaned_solution,
+          formatted_embedding,
+          JSON.stringify(metadata),
+        ]
+      );
+    } catch (error) {
+      console.error('Error storing solution:', error);
+      throw error;
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    await this.db.cleanup();
+  }
+}
+</file>
+
+<file path="src/core/services/rag.service.ts">
+// ~/src/core/services/rag.service.ts
+
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const DOJO_API_BASE_URL = process.env.DOJO_API_BASE_URL;
+const DOJO_API_KEY = process.env.DOJO_API_KEY;
+
+if (!DOJO_API_BASE_URL || !DOJO_API_KEY) {
+  throw new Error(
+    'Missing required environment variables DOJO_API_BASE_URL or DOJO_API_KEY'
+  );
+}
+
+// Define more specific success/error types
+type RagApiSuccess<T> = {
+  success: true;
+  status: number;
+  data: T;
+};
+
+type RagApiFailure<E> = {
+  success: false;
+  status: number;
+  data: E;
+};
+
+type RagApiFetchData<Data, ErrorData> =
+  | RagApiSuccess<Data>
+  | RagApiFailure<ErrorData>;
+
+// Define custom headers type
+type RagCustomHeaders = HeadersInit & {
+  Accept?: string;
+  Authorization?: string;
+  Referrer?: string;
+};
+
+interface RagCustomRequestInit extends RequestInit {
+  headers?: RagCustomHeaders;
+  timeout?: number;
+}
+
+// Define HTTP status codes enum
+enum HttpStatusCode {
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  FORBIDDEN = 403,
+  NOT_FOUND = 404,
+  TOO_MANY_REQUESTS = 429,
+  INTERNAL_SERVER_ERROR = 500,
+  BAD_GATEWAY = 502,
+  SERVICE_UNAVAILABLE = 503,
+  GATEWAY_TIMEOUT = 504,
+}
+
+// Define status code descriptions
+const STATUS_CODE_DESCRIPTIONS: Record<HttpStatusCode, string> = {
+  [HttpStatusCode.BAD_REQUEST]: 'Bad Request',
+  [HttpStatusCode.UNAUTHORIZED]:
+    'Unauthorized - API key may be invalid or missing',
+  [HttpStatusCode.FORBIDDEN]: 'Forbidden - Insufficient permissions',
+  [HttpStatusCode.NOT_FOUND]: 'Not Found',
+  [HttpStatusCode.TOO_MANY_REQUESTS]: 'Too Many Requests',
+  [HttpStatusCode.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
+  [HttpStatusCode.BAD_GATEWAY]: 'Bad Gateway',
+  [HttpStatusCode.SERVICE_UNAVAILABLE]: 'Service Unavailable',
+  [HttpStatusCode.GATEWAY_TIMEOUT]: 'Gateway Timeout',
+};
+
+const DEFAULT_HEADERS: RagCustomHeaders = {
+  Accept: 'application/json',
+  Authorization: `Token ${DOJO_API_KEY}`,
+  Referrer: new URL(DOJO_API_BASE_URL).origin,
+};
+
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+
+export class RagApiRequestError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public status_text?: string,
+    public response_body?: any,
+    public url?: string
+  ) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+
+  toString(): string {
+    const parts = [this.message];
+    if (this.status) {
+      parts.push(`Status: ${this.status} (${this.status_text || 'Unknown'})`);
+    }
+    if (this.url) {
+      parts.push(`URL: ${this.url}`);
+    }
+    if (this.response_body) {
+      parts.push(`Response: ${JSON.stringify(this.response_body)}`);
+    }
+    return parts.join(' | ');
+  }
+}
+
+// Get HTTP status code description
+const get_status_code_description = (status: number): string => {
+  return STATUS_CODE_DESCRIPTIONS[status as HttpStatusCode] || 'Unknown Status';
+};
+
+// Enhanced fetch function with timeout
+const fetch_with_timeout = async (
+  url: string,
+  config: RagCustomRequestInit = {}
+): Promise<Response> => {
+  const { timeout = DEFAULT_TIMEOUT, ...rest_config } = config;
+
+  const controller = new AbortController();
+  const timeout_id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...rest_config,
+      signal: controller.signal,
+      headers: rest_config.headers as HeadersInit,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeout_id);
+  }
+};
+
+// Enhanced fetch function for API requests with proper error handling
+const rag_api_fetch = async (
+  url: string,
+  config: RagCustomRequestInit = {}
+): Promise<Response> => {
+  const full_url = `${DOJO_API_BASE_URL}${url}`;
+  const merged_config: RagCustomRequestInit = {
+    ...config,
+    headers: {
+      ...DEFAULT_HEADERS,
+      ...config.headers,
+    },
+  };
+
+  try {
+    const response = await fetch_with_timeout(full_url, merged_config);
+
+    if (!response.ok) {
+      const response_body = await response.json().catch(() => undefined);
+      const status_description = get_status_code_description(response.status);
+
+      throw new RagApiRequestError(
+        `API request failed: ${status_description}`,
+        response.status,
+        response.statusText,
+        response_body,
+        full_url
+      );
+    }
+
+    return response;
+  } catch (err) {
+    if (err instanceof RagApiRequestError) {
+      throw err;
+    }
+
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new RagApiRequestError(
+        'Request timeout exceeded',
+        undefined,
+        'Timeout',
+        undefined,
+        full_url
+      );
+    }
+
+    throw new RagApiRequestError(
+      'Failed to complete API request',
+      undefined,
+      undefined,
+      undefined,
+      full_url
+    );
+  }
+};
+
+/**
+ * Fetches and parses JSON response with proper typing.
+ *
+ * This function is designed for internal application use where you need:
+ * 1. Type safety with generics for both success and error responses
+ * 2. Structured response with success flag, status, and typed data
+ * 3. Programmatic access to both the response status and data
+ *
+ * Use this when you need to handle the API response within your application code
+ * and want to perform different logic based on success/failure.
+ *
+ * Example:
+ * const result = await api_fetch_and_parse_json<UserData, ErrorData>('/users/123');
+ * if (result.success) {
+ *   // Handle success case with UserData
+ *   processUser(result.data);
+ * } else {
+ *   // Handle error case with ErrorData
+ *   handleError(result.data);
+ * }
+ */
+export const rag_fetch_and_parse_json = async <Data, ErrorData>(
+  url: string,
+  config: Partial<RagCustomRequestInit> = {}
+): Promise<RagApiFetchData<Data, ErrorData>> => {
+  const response = await rag_api_fetch(url, config as RagCustomRequestInit);
+  let data: Data | ErrorData;
+
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new Error('Unable to parse JSON response');
+  }
+
+  return {
+    success: response.status < 300,
+    status: response.status,
+    data: response.status < 300 ? (data as Data) : (data as ErrorData),
+  } as RagApiFetchData<Data, ErrorData>;
+};
+
+/**
+ * Returns API response formatted as a proper HTTP Response object.
+ *
+ * This function is designed for API endpoints or middleware where you need to:
+ * 1. Forward or proxy responses from the Dojo API
+ * 2. Maintain the original HTTP status codes
+ * 3. Return a proper Response object that can be sent directly to clients
+ *
+ * Use this when you're building API endpoints that need to relay responses
+ * from the Dojo API while preserving the response structure.
+ *
+ * Example:
+ * // In an API route handler:
+ * app.get('/api/users/:id', async (req, res) => {
+ *   return rag_api_fetch_as_json_response<UserData, ErrorData>(`/users/${req.params.id}`);
+ * });
+ */
+export const rag_fetch_as_response = async <Data, ErrorData>(
+  url: string,
+  config: Partial<RagCustomRequestInit> = {}
+): Promise<Response> => {
+  const { status, data } = await rag_fetch_and_parse_json<Data, ErrorData>(
+    url,
+    config
+  );
+  return new Response(JSON.stringify(data), { status });
+};
+</file>
+
+<file path="src/core/types/ai.ts">
+// ~/src/core/types/ai.ts
+// AI-related types and interfaces
+
+export interface AiConfig {
+  base_url?: string;
+  api_key: string;
+  model: string;
+  max_tokens?: number | null;
+  temperature?: number;
+  timeout_ms?: number;
+  max_retries?: number;
+}
+
+export interface AiCallbacks {
+  onCompletion?: (completion: any) => void;
+  onError?: (error: Error) => void;
+  onRetry?: (attempt: number, error: Error) => void;
+}
+
+export interface AiRetryNotification {
+  attempt: number;
+  error: Error;
+  max_retries: number;
+}
+
+export type AiName = 'planner' | 'solver' | 'llm';
+</file>
+
+<file path="src/core/types/events.ts">
+// ~/src/core/types/events.ts
+// Event-related types and interfaces
+
+export interface EventBus {
+  emit(event: Event): void;
+}
+
+export interface Event {
+  type: string;
+  error?: Error;
+  context?: string;
+  completion?: any;
+  source?: string;
+}
+</file>
+
+<file path="src/core/types/index.ts">
+// ~/src/core/types/index.ts
+// Barrel file for type exports
+
+export * from './ai';
+export * from './events';
+</file>
+
+<file path="src/core/index.ts">
+// ~/src/core/index.ts
+// Barrel file for core module exports
+
+export { AiGenerate } from './ai';
+export { AiError, ContentModerationError } from './ai/errors';
+export * from './types';
+export * from './db';
+export * from './services/index';
+</file>
+
+<file path="src/core/services/index.ts">
+// ~/src/core/services/index.ts
+// Barrel file for services module exports
+
+export * from './rag.service';
+export * from './memory_service';
+</file>
+
+</files>
