@@ -40,7 +40,7 @@ npm run plan-cli
 
 ### 2. ReWOO Pattern (`src/rewoo/`)
 
-- Implements the ReWOO (Reasoning Without Output) pattern
+- Implements the ReWOO (Reasoning Without Observation) pattern
 - Focuses on planning and execution phases
 - Efficient for complex multi-step tasks
 - Built-in progress tracking and optimization
