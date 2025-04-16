@@ -1,6 +1,13 @@
 .
 ├── docs
-│   └── event-system.md
+│   ├── Augmenting Language Models with Generalizable and Efficient Tool Resolution.pdf
+│   ├── core-code.xml
+│   ├── event-system.md
+│   ├── Let’s build ReWOO with LangGraph and Tavily _ by Minh Le Duc _ GoPenAI.pdf
+│   ├── react-code.xml
+│   ├── react.log.md
+│   ├── Reasoning without Observation.pdf
+│   └── rewoo-code.xml
 ├── package-lock.json
 ├── package.json
 ├── README.md
@@ -25,9 +32,6 @@
 │   │       └── index.ts
 │   ├── react
 │   │   ├── cli.ts
-│   │   ├── docs
-│   │   │   ├── 2024.eacl-long.7.pdf
-│   │   │   └── example.log.md
 │   │   ├── errors.ts
 │   │   ├── helpers.ts
 │   │   ├── logs
@@ -56,13 +60,9 @@
 │   └── rewoo
 │       ├── ai.ts
 │       ├── cli.ts
-│       ├── docs
-│       │   ├── Let’s build ReWOO with LangGraph and Tavily _ by Minh Le Duc _ GoPenAI.pdf
-│       │   └── Reasoning without Observation.pdf
 │       ├── events.ts
 │       ├── helpers.ts
 │       ├── logs
-│       │   └── a2559f42-823f-4412-be34-0f26f83c4202_log.md
 │       ├── planner.examples.ts
 │       ├── planner.ts
 │       ├── README.md
@@ -85,4 +85,4 @@
 ├── tsconfig.json
 └── vitest.config.ts
 
-17 directories, 69 files
+15 directories, 71 files
