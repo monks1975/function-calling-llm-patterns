@@ -1,6 +1,6 @@
-# function-calling-patterns
+# Examples of LLM function calling
 
-A collection of example implementations for function calling with Large Language Models (LLMs), demonstrating different approaches and patterns.
+A collection of example patterns + implementations for function calling with Large Language Models (LLMs).
 
 ## Quick Start
 
